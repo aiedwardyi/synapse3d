@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "test": "node --test",
     "build": "vite build",
     "preview": "vite preview"
   },
@@ -13,6 +14,7 @@
   },
   "dependencies": {
     "3d-force-graph": "^1.80.0",
+    "idb-keyval": "^6.2.2",
     "three": "^0.184.0"
   }
 }
