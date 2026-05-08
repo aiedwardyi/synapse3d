@@ -48,7 +48,7 @@ export async function initVaultControls({
         } else {
           cached = null
           showPicker(false)
-          handle = await pickVault()
+          return
         }
       } else {
         handle = await pickVault()

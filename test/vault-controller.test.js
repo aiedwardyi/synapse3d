@@ -75,21 +75,34 @@ test('keeps the picker visible when selected vault loading fails', async () => {
   assert.equal(errors.length, 1)
 })
 
-test('falls back to selecting a new vault when cached permission is denied', async () => {
+test('waits for a fresh click when cached permission is denied', async () => {
   const cached = { name: 'cached' }
   const picked = { name: 'picked' }
   const loaded = []
+  let pickCount = 0
   const { pickButton, changeButton, deps } = createControls({
     getCachedVault: async () => cached,
     requestVaultPermission: async () => false,
-    pickVault: async () => picked,
+    pickVault: async () => {
+      pickCount++
+      return picked
+    },
     loadAndRender: async handle => loaded.push(handle)
   })
 
   await initVaultControls(deps)
   await pickButton.click()
 
+  assert.deepEqual(loaded, [])
+  assert.equal(pickCount, 0)
+  assert.equal(pickButton.hidden, false)
+  assert.equal(pickButton.textContent, 'Pick Vault Folder')
+  assert.equal(changeButton.hidden, true)
+
+  await pickButton.click()
+
   assert.deepEqual(loaded, [picked])
+  assert.equal(pickCount, 1)
   assert.equal(pickButton.hidden, true)
   assert.equal(changeButton.hidden, false)
 })

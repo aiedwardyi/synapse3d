@@ -87,6 +87,52 @@ test('deduplicates repeated wikilinks from the same source to the same target', 
   assert.equal(result.stats.linksCreated, 1)
 })
 
+test('deduplicates equivalent unresolved wikilink placeholders', async () => {
+  const vault = rootHandle([
+    fileHandle('Home.md', '[[Missing]] and [[Missing.md]]')
+  ])
+
+  const result = await parseVault(vault)
+  const placeholders = result.nodes.filter(node => node.missing)
+
+  assert.equal(placeholders.length, 1)
+  assert.equal(placeholders[0].label, 'Missing')
+  assert.deepEqual(result.links, [{ source: 'Home.md', target: placeholders[0].id }])
+  assert.equal(result.stats.linksCreated, 1)
+})
+
+test('resolves relative path wikilinks from the source folder', async () => {
+  const vault = rootHandle([
+    directoryHandle('Area', [
+      fileHandle('Target.md', '')
+    ]),
+    directoryHandle('Area/Sub', [
+      fileHandle('Source.md', '[[../Target]]')
+    ])
+  ])
+
+  const result = await parseVault(vault)
+
+  assert.equal(linkTarget(result, 'Area/Sub/Source.md'), 'Area/Target.md')
+  assert.equal(result.stats.brokenLinks, 0)
+})
+
+test('parses markdown files with case-insensitive extensions', async () => {
+  const vault = rootHandle([
+    fileHandle('Upper.MD', '[[Mixed.Md]]'),
+    fileHandle('Mixed.Md', '')
+  ])
+
+  const result = await parseVault(vault)
+
+  assert.deepEqual(
+    result.nodes.filter(node => !node.missing).map(node => node.id),
+    ['Mixed.Md', 'Upper.MD']
+  )
+  assert.equal(linkTarget(result, 'Upper.MD'), 'Mixed.Md')
+  assert.equal(result.stats.filesScanned, 2)
+})
+
 test('records ignored directories separately from scanned files', async () => {
   const vault = rootHandle([
     directoryHandle('.obsidian', [
@@ -104,13 +150,13 @@ test('records ignored directories separately from scanned files', async () => {
 
 test('extracts header and inline tags with supported characters', async () => {
   const vault = rootHandle([
-    fileHandle('Tagged.md', '#project #team/ai-core\nBody #topic_1 #topic-2 #project')
+    fileHandle('Tagged.md', '#Project #team/ai-core\nBody #topic_1 #topic-2 #project #研发 #🔥')
   ])
 
   const result = await parseVault(vault)
   const node = result.nodes.find(node => node.id === 'Tagged.md')
 
-  assert.deepEqual(node.tags, ['project', 'team/ai-core', 'topic_1', 'topic-2', 'project'])
+  assert.deepEqual(node.tags, ['project', 'team/ai-core', 'topic_1', 'topic-2', 'project', '研发', '🔥'])
 })
 
 test('creates placeholders and stats for broken wikilinks', async () => {

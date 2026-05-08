@@ -3,7 +3,8 @@ import { get, set } from 'idb-keyval'
 const IGNORE = ['.obsidian']
 const CACHE_KEY = 'synapse3d-vault-handle'
 const WIKILINK_RE = /\[\[([^\]]+)\]\]/g
-const TAG_RE = /(?:^|\s)#([a-zA-Z0-9_\-/]+)/g
+const TAG_RE = /(?:^|\s)#([\p{L}\p{M}\p{N}\p{Pc}\p{Pd}\/\p{S}\u200d]+)/gu
+const MARKDOWN_EXTENSION_RE = /\.md$/i
 
 // Opens the folder picker, saves the chosen folder, returns it.
 export async function pickVault() {
@@ -106,7 +107,7 @@ async function* walkVault(dirHandle, relPath, stats) {
       continue
     }
 
-    if (entry.kind === 'file' && entry.name.endsWith('.md')) {
+    if (entry.kind === 'file' && isMarkdownFile(entry.name)) {
       try {
         const file = await entry.getFile()
         const text = await file.text()
@@ -133,7 +134,7 @@ function extractWikilinks(text) {
 function extractTags(text) {
   const tags = []
   for (const match of text.matchAll(TAG_RE)) {
-    tags.push(match[1])
+    tags.push(match[1].toLowerCase())
   }
   return tags
 }
@@ -146,7 +147,7 @@ function createNoteIndex() {
 }
 
 function addNoteToIndex(index, id, label) {
-  const path = normalizeTarget(id)
+  const path = normalizePath(normalizeTarget(id))
   index.pathToId.set(path, id)
   index.pathToId.set(stripMarkdownExtension(path), id)
 
@@ -167,12 +168,13 @@ function resolveLinks(nodes, rawLinks, noteIndex, stats) {
     let targetId = resolved.id
 
     if (!targetId) {
-      const placeholderKey = `${resolved.reason}:${target}`
+      const placeholderTarget = resolved.target || stripMarkdownExtension(normalizeTarget(target))
+      const placeholderKey = `${resolved.reason}:${placeholderTarget}`
       if (!placeholders.has(placeholderKey)) {
         const placeholderId = uniquePlaceholderId(placeholderKey, nodeIds)
         const placeholder = {
           id: placeholderId,
-          label: target,
+          label: placeholderTarget,
           tags: [],
           missing: true,
           ambiguous: resolved.reason === 'ambiguous'
@@ -206,8 +208,9 @@ function resolveTarget(source, target, noteIndex) {
   const normalized = normalizeTarget(target)
 
   if (normalized.includes('/')) {
-    const pathId = resolvePathTarget(normalized, noteIndex)
-    return pathId ? { id: pathId } : { reason: 'missing' }
+    const pathTarget = resolveLinkPath(source, normalized)
+    const pathId = resolvePathTarget(pathTarget, noteIndex)
+    return pathId ? { id: pathId } : { reason: 'missing', target: stripMarkdownExtension(pathTarget) }
   }
 
   const label = stripMarkdownExtension(normalized)
@@ -226,14 +229,23 @@ function resolveTarget(source, target, noteIndex) {
   }
 
   if (ids.length > 1) {
-    return { reason: 'ambiguous' }
+    return { reason: 'ambiguous', target: label }
   }
 
-  return { reason: 'missing' }
+  return { reason: 'missing', target: label }
 }
 
 function resolvePathTarget(target, noteIndex) {
   return noteIndex.pathToId.get(target) || noteIndex.pathToId.get(stripMarkdownExtension(target))
+}
+
+function resolveLinkPath(source, target) {
+  const scopedTarget = isRelativeTarget(target) ? `${dirname(source)}/${target}` : target
+  return normalizePath(scopedTarget)
+}
+
+function isRelativeTarget(target) {
+  return target.startsWith('./') || target.startsWith('../')
 }
 
 function normalizeTarget(value) {
@@ -245,7 +257,28 @@ function normalizeTarget(value) {
 }
 
 function stripMarkdownExtension(value) {
-  return value.replace(/\.md$/i, '')
+  return value.replace(MARKDOWN_EXTENSION_RE, '')
+}
+
+function isMarkdownFile(name) {
+  return MARKDOWN_EXTENSION_RE.test(name)
+}
+
+function normalizePath(path) {
+  const segments = []
+
+  for (const segment of path.split('/')) {
+    if (!segment || segment === '.') continue
+
+    if (segment === '..') {
+      if (segments.length > 0) segments.pop()
+      continue
+    }
+
+    segments.push(segment)
+  }
+
+  return segments.join('/')
 }
 
 function dirname(path) {
