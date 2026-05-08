@@ -1,5 +1,6 @@
 import ForceGraph3D from '3d-force-graph'
 import { pickVault, getCachedVault, hasVaultPermission, requestVaultPermission, parseVault } from './vault.js'
+import { initVaultControls } from './vault-controller.js'
 import './style.css'
 
 const TAG_COLORS = [
@@ -49,48 +50,20 @@ async function loadAndRender(handle) {
   const result = await parseVault(handle)
   console.log('Vault stats:', result.stats)
   render(result)
-  document.getElementById('change-vault').hidden = false
 }
 
 async function init() {
   const pickButton = document.getElementById('pick-vault')
   const changeButton = document.getElementById('change-vault')
 
-  // Always wire the change-vault button. It stays hidden until a vault loads.
-  changeButton.addEventListener('click', async () => {
-    try {
-      const handle = await pickVault()
-      await loadAndRender(handle)
-    } catch (err) {
-      if (err.name !== 'AbortError') console.error(err)
-    }
-  })
-
-  const cached = await getCachedVault()
-
-  if (cached && await hasVaultPermission(cached)) {
-    await loadAndRender(cached)
-    return
-  }
-
-  if (cached) pickButton.textContent = 'Open Vault'
-  pickButton.hidden = false
-
-  pickButton.addEventListener('click', async () => {
-    try {
-      let handle
-      if (cached) {
-        const granted = await requestVaultPermission(cached)
-        if (!granted) return
-        handle = cached
-      } else {
-        handle = await pickVault()
-      }
-      pickButton.hidden = true
-      await loadAndRender(handle)
-    } catch (err) {
-      if (err.name !== 'AbortError') console.error(err)
-    }
+  await initVaultControls({
+    pickButton,
+    changeButton,
+    pickVault,
+    getCachedVault,
+    hasVaultPermission,
+    requestVaultPermission,
+    loadAndRender
   })
 }
 
