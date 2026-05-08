@@ -49,7 +49,7 @@ export async function requestVaultPermission(handle) {
 export async function parseVault(rootHandle) {
   const stats = {
     filesScanned: 0,
-    filesIgnored: 0,
+    dirsIgnored: 0,
     fileReadErrors: 0,
     nodesCreated: 0,
     linksCreated: 0,
@@ -99,7 +99,7 @@ async function* walkVault(dirHandle, relPath, stats) {
         prefix => entryPath === prefix || entryPath.startsWith(prefix + '/')
       )
       if (ignored) {
-        stats.filesIgnored++
+        stats.dirsIgnored++
         continue
       }
       yield* walkVault(entry, entryPath, stats)

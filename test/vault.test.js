@@ -87,22 +87,57 @@ test('deduplicates repeated wikilinks from the same source to the same target', 
   assert.equal(result.stats.linksCreated, 1)
 })
 
-test('continues parsing when a markdown file cannot be read', async () => {
+test('records ignored directories separately from scanned files', async () => {
+  const vault = rootHandle([
+    directoryHandle('.obsidian', [
+      fileHandle('workspace.json', '{}')
+    ]),
+    fileHandle('Visible.md', '')
+  ])
+
+  const result = await parseVault(vault)
+
+  assert.equal(result.stats.dirsIgnored, 1)
+  assert.equal(result.stats.filesScanned, 1)
+  assert.equal(result.nodes.some(node => node.id === '.obsidian/workspace.json'), false)
+})
+
+test('extracts header and inline tags with supported characters', async () => {
+  const vault = rootHandle([
+    fileHandle('Tagged.md', '#project #team/ai-core\nBody #topic_1 #topic-2 #project')
+  ])
+
+  const result = await parseVault(vault)
+  const node = result.nodes.find(node => node.id === 'Tagged.md')
+
+  assert.deepEqual(node.tags, ['project', 'team/ai-core', 'topic_1', 'topic-2', 'project'])
+})
+
+test('creates placeholders and stats for broken wikilinks', async () => {
+  const vault = rootHandle([
+    fileHandle('Home.md', '[[Missing Note]]')
+  ])
+
+  const result = await parseVault(vault)
+  const placeholder = result.nodes.find(node => node.missing)
+
+  assert.ok(placeholder)
+  assert.equal(placeholder.label, 'Missing Note')
+  assert.equal(placeholder.ambiguous, false)
+  assert.deepEqual(result.links, [{ source: 'Home.md', target: placeholder.id }])
+  assert.equal(result.stats.brokenLinks, 1)
+})
+
+test('continues parsing when a markdown file cannot be read', async t => {
   const vault = rootHandle([
     fileHandle('Good.md', '[[Missing]]'),
     fileHandle('Bad.md', '', { failRead: true })
   ])
-  const originalWarn = console.warn
   const warnings = []
 
-  console.warn = (...args) => warnings.push(args)
+  t.mock.method(console, 'warn', (...args) => warnings.push(args))
 
-  let result
-  try {
-    result = await parseVault(vault)
-  } finally {
-    console.warn = originalWarn
-  }
+  const result = await parseVault(vault)
 
   assert.equal(result.nodes.some(node => node.id === 'Good.md'), true)
   assert.equal(result.nodes.some(node => node.id === 'Bad.md'), false)
