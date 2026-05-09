@@ -1,7 +1,11 @@
 import ForceGraph3D from '3d-force-graph'
 import { pickVault, getCachedVault, hasVaultPermission, requestVaultPermission, parseVault } from './vault.js'
 import { initVaultControls } from './vault-controller.js'
+import { requestCameraStream, createHandTracker } from './hand-tracking.js'
+import { drawLandmarks } from './hand-overlay.js'
 import './style.css'
+
+const HAND_MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task'
 
 const TAG_COLORS = [
   '#4a90e2',
@@ -33,6 +37,7 @@ function nodeColor(node) {
 }
 
 let graph = null
+let trackingButton = null
 
 function render(data) {
   if (!graph) {
@@ -50,11 +55,42 @@ async function loadAndRender(handle) {
   const result = await parseVault(handle)
   console.log('Vault stats:', result.stats)
   render(result)
+  if (trackingButton) trackingButton.hidden = false
+}
+
+function initHandTracking({ button, video, canvas }) {
+  button.addEventListener('click', async () => {
+    button.disabled = true
+    try {
+      const stream = await requestCameraStream()
+      video.srcObject = stream
+      await video.play()
+
+      const tracker = await createHandTracker({
+        video,
+        modelAssetUrl: HAND_MODEL_URL
+      })
+
+      tracker.start(result => {
+        drawLandmarks(canvas, result?.landmarks || [])
+      })
+
+      button.hidden = true
+      video.hidden = false
+      canvas.hidden = false
+    } catch (err) {
+      console.warn('Hand tracking failed to start:', err)
+      button.disabled = false
+    }
+  })
 }
 
 async function init() {
   const pickButton = document.getElementById('pick-vault')
   const changeButton = document.getElementById('change-vault')
+  trackingButton = document.getElementById('enable-tracking')
+  const handVideo = document.getElementById('hand-video')
+  const handCanvas = document.getElementById('hand-overlay')
 
   await initVaultControls({
     pickButton,
@@ -64,6 +100,12 @@ async function init() {
     hasVaultPermission,
     requestVaultPermission,
     loadAndRender
+  })
+
+  initHandTracking({
+    button: trackingButton,
+    video: handVideo,
+    canvas: handCanvas
   })
 }
 

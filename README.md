@@ -2,7 +2,7 @@
 
 A browser-based 3D knowledge graph navigated by hand gestures - your note vault as a constellation, manipulated in midair via webcam.
 
-> **Status:** Phase 0 complete. Vault parser (Phase 1) next.
+> **Status:** Phase 2 complete. Pinch-to-select (Phase 3) next.
 
 <p align="center">
   <img src="./docs/demo.png" alt="Synapse3D demo" width="475" />
@@ -36,8 +36,8 @@ The goal is a tactile, low-friction way to *think with* your notes instead of cl
 | Phase | Focus | State |
 |---|---|---|
 | 0 | Vite + 3d-force-graph skeleton | ✅ |
-| 1 | Vault parser (markdown → graph) | - |
-| 2 | MediaPipe hand tracking + overlay | - |
+| 1 | Vault parser (markdown → graph) | ✅ |
+| 2 | MediaPipe hand tracking + overlay | ✅ |
 | 3 | Pinch to select | - |
 | 4 | Pinch + hold to grab | - |
 | 5 | Open palm to orbit camera | - |
@@ -54,6 +54,14 @@ npm run dev
 ```
 
 Open http://localhost:5173.
+
+## Tests
+
+```bash
+npm test
+```
+
+Tests run in CI on push and pull requests.
 
 ## License
 

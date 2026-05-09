@@ -5,10 +5,10 @@ Synapse3D is a browser-based 3D knowledge graph controlled by hand gestures. The
 ## Phase 0 - Skeleton ✅
 Vite + three.js + 3d-force-graph rendering hardcoded sample data. Mouse orbit and zoom. Establishes the rendering pipeline.
 
-## Phase 1 - Vault Parser
+## Phase 1 - Vault Parser ✅
 Read an Obsidian-format vault via the File System Access API. Parse `[[wikilinks]]` into edges and `#tags` into color clusters. Replace hardcoded data with real notes.
 
-## Phase 2 - MediaPipe Hand Tracking
+## Phase 2 - MediaPipe Hand Tracking ✅
 Integrate MediaPipe Tasks `HandLandmarker`. Render a ghost-hand overlay (21 landmarks) to confirm tracking quality before wiring it to interactions.
 
 ## Phase 3 - Pinch to Select
