@@ -69,6 +69,7 @@ function render(data) {
       .linkColor(() => '#cfd8e8')
       .linkOpacity(0.3)
   }
+  clearSelection()
   graph.graphData(data)
 }
 
@@ -115,6 +116,15 @@ function selectNode(hit) {
     applyHighlight(hit.mesh)
     selectionPanel.show(hit.node)
   }
+}
+
+function clearSelection() {
+  if (currentSelection) {
+    revertHighlight(currentSelection.mesh)
+    currentSelection = null
+  }
+
+  selectionPanel?.hide()
 }
 
 async function loadAndRender(handle) {

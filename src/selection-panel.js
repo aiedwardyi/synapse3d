@@ -24,6 +24,7 @@ export function createSelectionPanel(panelElement) {
       panelElement.hidden = false
     },
     hide() {
+      clearChildren(panelElement)
       panelElement.hidden = true
     }
   }

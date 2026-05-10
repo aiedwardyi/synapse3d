@@ -93,6 +93,21 @@ test('hide sets hidden to true', () => {
   assert.equal(panelElement.hidden, true)
 })
 
+test('hide clears rendered selection details', () => {
+  const panelElement = createElement('div')
+  const panel = createSelectionPanel(panelElement)
+
+  panel.show({
+    id: 'stale-note',
+    label: 'Stale Note',
+    tags: ['old']
+  })
+  panel.hide()
+
+  assert.equal(panelElement.hidden, true)
+  assert.equal(panelElement.children.length, 0)
+})
+
 function createElement(tagName) {
   const element = {
     tagName,
