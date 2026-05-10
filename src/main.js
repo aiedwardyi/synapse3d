@@ -3,7 +3,9 @@ import { pickVault, getCachedVault, hasVaultPermission, requestVaultPermission, 
 import { initVaultControls } from './vault-controller.js'
 import { requestCameraStream, createHandTracker, stopVideoStream } from './hand-tracking.js'
 import { resetTrackingUiAfterError, updateTrackingButtonAfterRender } from './hand-tracking-ui.js'
-import { drawLandmarks } from './hand-overlay.js'
+import { drawFingertipCursor, drawLandmarks } from './hand-overlay.js'
+import { createOneEuroFilter, createPinchDetector } from './gestures.js'
+import { applyCoverTransform, mirrorLandmarkX } from './landmark-transform.js'
 import './style.css'
 
 const HAND_MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task'
@@ -21,6 +23,15 @@ const TAG_COLORS = [
 
 const DEFAULT_COLOR = '#cfd8e8'
 const MISSING_COLOR = '#4a3030'
+const FINGERTIP_FILTER_OPTIONS = {
+  minCutoff: 1.0,
+  beta: 0.05,
+  dCutoff: 1.0
+}
+const PINCH_DETECTOR_OPTIONS = {
+  enterRatio: 0.45,
+  exitRatio: 0.55
+}
 
 // Hash the first tag to a palette color. Same tag always = same color.
 function colorForTag(tag) {
@@ -64,6 +75,18 @@ function initHandTracking({ button, video, canvas }) {
   button.addEventListener('click', async () => {
     button.disabled = true
     try {
+      const cursorFilterX = createOneEuroFilter(FINGERTIP_FILTER_OPTIONS)
+      const cursorFilterY = createOneEuroFilter(FINGERTIP_FILTER_OPTIONS)
+      const detectPinch = createPinchDetector(PINCH_DETECTOR_OPTIONS)
+      let previousPinchState = false
+
+      function resetGestureState() {
+        cursorFilterX.reset()
+        cursorFilterY.reset()
+        detectPinch.reset()
+        previousPinchState = false
+      }
+
       const stream = await requestCameraStream()
       video.srcObject = stream
       await video.play()
@@ -75,7 +98,50 @@ function initHandTracking({ button, video, canvas }) {
 
       tracker.start(
         result => {
-          drawLandmarks(canvas, result?.landmarks || [])
+          const sourceW = video.videoWidth
+          const sourceH = video.videoHeight
+
+          if (!Number.isFinite(sourceW) || !Number.isFinite(sourceH) || sourceW === 0 || sourceH === 0) {
+            resetGestureState()
+            drawLandmarks(canvas, [])
+            return
+          }
+
+          const rawHands = (result?.landmarks || []).filter(isDrawableHand)
+
+          const transformedHands = rawHands.map(landmarks => (
+            transformHandLandmarks(
+              landmarks,
+              sourceW,
+              sourceH,
+              canvas.width,
+              canvas.height
+            )
+          ))
+
+          drawLandmarks(canvas, transformedHands)
+
+          const firstHand = transformedHands[0]
+          const sourceHand = scaleHandToSourcePixels(rawHands[0], sourceW, sourceH)
+          const indexTip = firstHand?.[8]
+          if (!sourceHand || !isDrawablePoint(indexTip)) {
+            resetGestureState()
+            return
+          }
+
+          const time = performance.now() / 1000
+          const cursorPoint = {
+            x: cursorFilterX(indexTip.x, time),
+            y: cursorFilterY(indexTip.y, time)
+          }
+          const isPinching = detectPinch(sourceHand)
+
+          if (isPinching !== previousPinchState) {
+            console.log('Pinch state:', isPinching)
+            previousPinchState = isPinching
+          }
+
+          drawFingertipCursor(canvas, cursorPoint, isPinching)
         },
         err => {
           console.warn('Hand tracking runtime error:', err)
@@ -94,6 +160,45 @@ function initHandTracking({ button, video, canvas }) {
       button.disabled = false
     }
   })
+}
+
+function scaleHandToSourcePixels(landmarks, sourceW, sourceH) {
+  if (!isDrawableHand(landmarks)) return null
+
+  return landmarks.map(landmark => ({
+    x: landmark.x * sourceW,
+    y: landmark.y * sourceH
+  }))
+}
+
+function transformHandLandmarks(landmarks, sourceW, sourceH, containerW, containerH) {
+  return landmarks.map(landmark => {
+    const transformedLandmark = applyCoverTransform(
+      landmark,
+      sourceW,
+      sourceH,
+      containerW,
+      containerH
+    )
+
+    return mirrorLandmarkX(transformedLandmark)
+  })
+}
+
+function isDrawablePoint(point) {
+  return point &&
+    Number.isFinite(point.x) &&
+    Number.isFinite(point.y)
+}
+
+function isDrawableHand(landmarks) {
+  if (!Array.isArray(landmarks) || landmarks.length < 21) return false
+
+  for (let i = 0; i < 21; i++) {
+    if (!isDrawablePoint(landmarks[i])) return false
+  }
+
+  return true
 }
 
 function syncOverlayCanvasSize(canvas) {
