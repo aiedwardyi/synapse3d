@@ -94,6 +94,40 @@ html, body {
   cursor: wait;
 }
 
+#selection-panel {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  max-width: 280px;
+  padding: 16px;
+  background: rgba(10, 14, 26, 0.85);
+  backdrop-filter: blur(8px);
+  border: 1px solid #4a90e2;
+  border-radius: 6px;
+  color: #cfd8e8;
+  z-index: 10;
+  box-shadow: 0 0 20px rgba(74, 144, 226, 0.4);
+}
+
+#selection-panel h2 {
+  font-size: 16px;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.selection-panel-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.selection-panel-tag {
+  padding: 2px 8px;
+  border-radius: 3px;
+  background: rgba(74, 144, 226, 0.2);
+  font-size: 12px;
+}
+
 #hand-video {
   position: fixed;
   top: 0;

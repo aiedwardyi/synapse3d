@@ -7,3 +7,9 @@ test('hand tracking button has an explicit button type', async () => {
 
   assert.match(html, /<button id="enable-tracking" type="button" hidden>/)
 })
+
+test('selection panel is present and hidden by default', async () => {
+  const html = await readFile(new URL('../index.html', import.meta.url), 'utf8')
+
+  assert.match(html, /<div id="selection-panel" hidden><\/div>/)
+})
