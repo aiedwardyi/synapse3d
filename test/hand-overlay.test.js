@@ -63,6 +63,32 @@ test('drawLandmarks skips malformed hand landmark arrays', () => {
   assert.equal(calls.filter(call => call === 'arc').length, 21)
 })
 
+test('drawLandmarks skips sparse hand landmark arrays', () => {
+  const calls = []
+  const canvas = {
+    width: 320,
+    height: 240,
+    getContext: () => ({
+      clearRect: () => calls.push('clearRect'),
+      beginPath: () => calls.push('beginPath'),
+      moveTo: () => calls.push('moveTo'),
+      lineTo: () => calls.push('lineTo'),
+      stroke: () => calls.push('stroke'),
+      arc: () => calls.push('arc'),
+      fill: () => calls.push('fill')
+    })
+  }
+  const sparseHand = new Array(21)
+  sparseHand[0] = { x: 0.5, y: 0.5 }
+
+  assert.doesNotThrow(() => {
+    drawLandmarks(canvas, [sparseHand, createHand()])
+  })
+
+  assert.equal(calls.filter(call => call === 'clearRect').length, 1)
+  assert.equal(calls.filter(call => call === 'arc').length, 21)
+})
+
 test('drawLandmarks skips hands with non-finite coordinates', () => {
   const calls = []
   const canvas = {

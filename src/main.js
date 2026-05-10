@@ -192,9 +192,13 @@ function isDrawablePoint(point) {
 }
 
 function isDrawableHand(landmarks) {
-  return Array.isArray(landmarks) &&
-    landmarks.length >= 21 &&
-    landmarks.every(isDrawablePoint)
+  if (!Array.isArray(landmarks) || landmarks.length < 21) return false
+
+  for (let i = 0; i < 21; i++) {
+    if (!isDrawablePoint(landmarks[i])) return false
+  }
+
+  return true
 }
 
 function syncOverlayCanvasSize(canvas) {
