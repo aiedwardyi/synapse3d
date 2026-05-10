@@ -2,7 +2,7 @@ import ForceGraph3D from '3d-force-graph'
 import { pickVault, getCachedVault, hasVaultPermission, requestVaultPermission, parseVault } from './vault.js'
 import { initVaultControls } from './vault-controller.js'
 import { requestCameraStream, createHandTracker, stopVideoStream } from './hand-tracking.js'
-import { updateTrackingButtonAfterRender } from './hand-tracking-ui.js'
+import { resetTrackingUiAfterError, updateTrackingButtonAfterRender } from './hand-tracking-ui.js'
 import { drawLandmarks } from './hand-overlay.js'
 import './style.css'
 
@@ -73,9 +73,16 @@ function initHandTracking({ button, video, canvas }) {
         modelAssetUrl: HAND_MODEL_URL
       })
 
-      tracker.start(result => {
-        drawLandmarks(canvas, result?.landmarks || [])
-      })
+      tracker.start(
+        result => {
+          drawLandmarks(canvas, result?.landmarks || [])
+        },
+        err => {
+          console.warn('Hand tracking runtime error:', err)
+          resetTrackingUiAfterError({ button, video, canvas, stopVideoStream })
+          handTrackingStarted = false
+        }
+      )
 
       handTrackingStarted = true
       button.hidden = true
