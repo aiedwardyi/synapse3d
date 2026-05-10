@@ -44,7 +44,7 @@ let handTrackingStarted = false
 function render(data) {
   if (!graph) {
     graph = ForceGraph3D()(document.getElementById('graph'))
-      .backgroundColor('#0a0e1a')
+      .backgroundColor('rgba(0,0,0,0)')
       .nodeLabel('label')
       .nodeColor(nodeColor)
       .linkColor(() => '#cfd8e8')
@@ -96,12 +96,20 @@ function initHandTracking({ button, video, canvas }) {
   })
 }
 
+function syncOverlayCanvasSize(canvas) {
+  canvas.width = window.innerWidth
+  canvas.height = window.innerHeight
+}
+
 async function init() {
   const pickButton = document.getElementById('pick-vault')
   const changeButton = document.getElementById('change-vault')
   trackingButton = document.getElementById('enable-tracking')
   const handVideo = document.getElementById('hand-video')
   const handCanvas = document.getElementById('hand-overlay')
+
+  syncOverlayCanvasSize(handCanvas)
+  window.addEventListener('resize', () => syncOverlayCanvasSize(handCanvas))
 
   await initVaultControls({
     pickButton,

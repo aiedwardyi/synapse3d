@@ -87,6 +87,34 @@ test('drawLandmarks skips hands with non-finite coordinates', () => {
   assert.equal(calls.filter(call => call === 'arc').length, 21)
 })
 
+test('drawLandmarks renders a hand at fullscreen 1920x1080 dimensions', () => {
+  const calls = []
+  const clearRectArgs = []
+  const canvas = {
+    width: 1920,
+    height: 1080,
+    getContext: () => ({
+      clearRect: (x, y, w, h) => {
+        calls.push('clearRect')
+        clearRectArgs.push([x, y, w, h])
+      },
+      beginPath: () => calls.push('beginPath'),
+      moveTo: () => calls.push('moveTo'),
+      lineTo: () => calls.push('lineTo'),
+      stroke: () => calls.push('stroke'),
+      arc: () => calls.push('arc'),
+      fill: () => calls.push('fill')
+    })
+  }
+
+  assert.doesNotThrow(() => drawLandmarks(canvas, [createHand()]))
+
+  assert.equal(calls.filter(call => call === 'clearRect').length, 1)
+  assert.deepEqual(clearRectArgs[0], [0, 0, 1920, 1080])
+  assert.equal(calls.filter(call => call === 'arc').length, 21)
+  assert.ok(calls.includes('stroke'))
+})
+
 function createHand() {
   return Array.from({ length: 21 }, () => ({ x: 0.5, y: 0.5 }))
 }
