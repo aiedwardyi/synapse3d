@@ -101,7 +101,11 @@ function initHandTracking({ button, video, canvas }) {
           const sourceW = video.videoWidth
           const sourceH = video.videoHeight
 
-          if (!Number.isFinite(sourceW) || !Number.isFinite(sourceH) || sourceW === 0 || sourceH === 0) return
+          if (!Number.isFinite(sourceW) || !Number.isFinite(sourceH) || sourceW === 0 || sourceH === 0) {
+            resetGestureState()
+            drawLandmarks(canvas, [])
+            return
+          }
 
           const rawHands = (result?.landmarks || []).filter(isDrawableHand)
 

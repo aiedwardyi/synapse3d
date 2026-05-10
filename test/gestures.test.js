@@ -40,6 +40,17 @@ test('pinchRatio is scale invariant', () => {
   assertApprox(pinchRatio(scaledHand), pinchRatio(hand))
 })
 
+test('pinchRatio returns infinity when hand scale is zero', () => {
+  const hand = createHand({
+    wrist: { x: 1, y: 1 },
+    middleMcp: { x: 1, y: 1 },
+    thumbTip: { x: 1, y: 1 },
+    indexTip: { x: 2, y: 1 }
+  })
+
+  assert.equal(pinchRatio(hand), Number.POSITIVE_INFINITY)
+})
+
 test('createPinchDetector enters and exits pinching across hysteresis thresholds', () => {
   const detectPinch = createPinchDetector({
     enterRatio: 0.45,
