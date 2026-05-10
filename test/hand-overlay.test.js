@@ -59,6 +59,34 @@ test('drawLandmarks skips malformed hand landmark arrays', () => {
   assert.equal(calls.filter(call => call === 'arc').length, 21)
 })
 
+test('drawLandmarks skips hands with non-finite coordinates', () => {
+  const calls = []
+  const canvas = {
+    width: 320,
+    height: 240,
+    getContext: () => ({
+      clearRect: () => calls.push('clearRect'),
+      beginPath: () => calls.push('beginPath'),
+      moveTo: () => calls.push('moveTo'),
+      lineTo: () => calls.push('lineTo'),
+      stroke: () => calls.push('stroke'),
+      arc: () => calls.push('arc'),
+      fill: () => calls.push('fill')
+    })
+  }
+  const nanHand = createHand()
+  nanHand[0] = { x: Number.NaN, y: 0.5 }
+  const infiniteHand = createHand()
+  infiniteHand[0] = { x: 0.5, y: Number.POSITIVE_INFINITY }
+
+  assert.doesNotThrow(() => {
+    drawLandmarks(canvas, [nanHand, infiniteHand, createHand()])
+  })
+
+  assert.equal(calls.filter(call => call === 'clearRect').length, 1)
+  assert.equal(calls.filter(call => call === 'arc').length, 21)
+})
+
 function createHand() {
   return Array.from({ length: 21 }, () => ({ x: 0.5, y: 0.5 }))
 }

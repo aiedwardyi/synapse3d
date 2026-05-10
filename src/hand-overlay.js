@@ -69,7 +69,7 @@ function isDrawableHand(landmarks) {
     landmarks.length >= 21 &&
     landmarks.every(landmark => (
       landmark &&
-      typeof landmark.x === 'number' &&
-      typeof landmark.y === 'number'
+      Number.isFinite(landmark.x) &&
+      Number.isFinite(landmark.y)
     ))
 }
