@@ -1,25 +1,27 @@
-# Current Sprint - Phase 0: Skeleton
+# Current Sprint - Phase 3: Pinch to Select
 
-Goal: prove the rendering pipeline. Vite project with three.js + 3d-force-graph rendering hardcoded sample data. Mouse orbit and zoom.
+Goal: detect pinch gesture (thumb-index distance), raycast from fingertip into the 3D scene, highlight intersected node, show an info card. Introduce one-euro filter to smooth landmark jitter.
 
 ## Tasks
-- [x] Vite scaffold (vanilla JS template)
-- [x] Install three + 3d-force-graph
-- [x] `index.html` with fullscreen `#graph` container
-- [x] `src/style.css` - dark theme, fullscreen canvas
-- [x] `src/main.js` - sample data, ForceGraph3D init, dark bg, pale nodes
-- [x] Verify `localhost:5173` renders graph, orbit + zoom work
-- [x] `README.md`, `ROADMAP.md`, `CURRENT_SPRINT.md`, `.gitignore`
-- [x] `git init` + initial commit
+
+- [ ] `src/gestures.js` - `detectPinch(landmarks)` and `createOneEuroFilter()` (pure JS, ~30 lines)
+- [ ] `src/gesture-raycasting.js` - `raycastFromPoint(screenPoint, camera, scene)` using three.js Raycaster
+- [ ] `src/selection-panel.js` - create, update, hide info card DOM elements
+- [ ] Modify `src/main.js` - wire pinch detection + raycasting into hand tracking callback, tag node meshes with `userData.isNode`
+- [ ] Modify `index.html` - add `<div id="selection-panel">`
+- [ ] Modify `src/style.css` - `.selected-node` highlight, `#selection-panel` card styling
+- [ ] `test/gestures.test.js` - unit tests for `detectPinch` and `createOneEuroFilter`
+- [ ] Tune pinch threshold via testing (target: ~0.04 distance in [0,1] space)
+- [ ] Verify raycasting hits correct nodes and info card positions correctly
 
 ## Done
-- Vite project scaffolded, dependencies installed
-- Default Vite boilerplate stripped (counter, hero assets)
-- 10-node mental-model graph rendering against dark background
-- Mouse drag orbits camera, scroll wheel zooms
+
+- (in progress)
 
 ## Blocked
+
 - None.
 
-## Next sprint preview - Phase 1
-Vault parser using File System Access API. Replace hardcoded sample data with parsed `.md` files from a user-selected folder.
+## Next sprint preview - Phase 4
+
+Extend pinch into pinch-and-hold to grab a node. Drag the node along its current depth plane (not midair 3D).
