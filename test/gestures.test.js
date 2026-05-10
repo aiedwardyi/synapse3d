@@ -65,6 +65,18 @@ test('createPinchDetector holds state while ratio bounces inside hysteresis band
   assert.equal(detectPinch(createRatioHand(0.48)), false)
 })
 
+test('createPinchDetector reset clears pinch hysteresis state', () => {
+  const detectPinch = createPinchDetector({
+    enterRatio: 0.45,
+    exitRatio: 0.55
+  })
+
+  assert.equal(detectPinch(createRatioHand(0.4)), true)
+  detectPinch.reset()
+
+  assert.equal(detectPinch(createRatioHand(0.5)), false)
+})
+
 test('createOneEuroFilter returns first input unchanged', () => {
   const filter = createOneEuroFilter()
 
@@ -97,6 +109,16 @@ test('createOneEuroFilter smooths step input toward the new value without oversh
   assert.ok(second < 10)
   assert.ok(third > second)
   assert.ok(third < 10)
+})
+
+test('createOneEuroFilter reset clears prior smoothing history', () => {
+  const filter = createOneEuroFilter()
+
+  assert.equal(filter(0, 0), 0)
+  assert.ok(filter(10, 0.1) < 10)
+  filter.reset()
+
+  assert.equal(filter(10, 0.2), 10)
 })
 
 function createRatioHand(ratio) {

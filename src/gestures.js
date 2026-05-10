@@ -21,7 +21,7 @@ export function createPinchDetector({
 } = {}) {
   let isPinching = false
 
-  return function detectPinch(landmarks) {
+  function detectPinch(landmarks) {
     const ratio = pinchRatio(landmarks)
 
     if (!isPinching && ratio < enterRatio) {
@@ -32,6 +32,12 @@ export function createPinchDetector({
 
     return isPinching
   }
+
+  detectPinch.reset = () => {
+    isPinching = false
+  }
+
+  return detectPinch
 }
 
 function smoothingFactor(timeElapsed, cutoff) {
@@ -52,7 +58,7 @@ export function createOneEuroFilter({
   let derivativePrev = 0
   let timePrev = null
 
-  return function filter(value, time) {
+  function filter(value, time) {
     if (timePrev === null) {
       timePrev = time
       valuePrev = value
@@ -79,6 +85,14 @@ export function createOneEuroFilter({
     timePrev = time
     return valueFiltered
   }
+
+  filter.reset = () => {
+    valuePrev = null
+    derivativePrev = 0
+    timePrev = null
+  }
+
+  return filter
 }
 
 function pointDistance(a, b) {
