@@ -2,6 +2,7 @@ import ForceGraph3D from '3d-force-graph'
 import { pickVault, getCachedVault, hasVaultPermission, requestVaultPermission, parseVault } from './vault.js'
 import { initVaultControls } from './vault-controller.js'
 import { requestCameraStream, createHandTracker, stopVideoStream } from './hand-tracking.js'
+import { updateTrackingButtonAfterRender } from './hand-tracking-ui.js'
 import { drawLandmarks } from './hand-overlay.js'
 import './style.css'
 
@@ -38,6 +39,7 @@ function nodeColor(node) {
 
 let graph = null
 let trackingButton = null
+let handTrackingStarted = false
 
 function render(data) {
   if (!graph) {
@@ -55,7 +57,7 @@ async function loadAndRender(handle) {
   const result = await parseVault(handle)
   console.log('Vault stats:', result.stats)
   render(result)
-  if (trackingButton) trackingButton.hidden = false
+  updateTrackingButtonAfterRender(trackingButton, handTrackingStarted)
 }
 
 function initHandTracking({ button, video, canvas }) {
@@ -75,6 +77,7 @@ function initHandTracking({ button, video, canvas }) {
         drawLandmarks(canvas, result?.landmarks || [])
       })
 
+      handTrackingStarted = true
       button.hidden = true
       video.hidden = false
       canvas.hidden = false

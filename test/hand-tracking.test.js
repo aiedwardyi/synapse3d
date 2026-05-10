@@ -106,3 +106,66 @@ test('stops all tracks and clears the video stream after startup failure', () =>
   assert.deepEqual(stopped, ['video', 'audio'])
   assert.equal(video.srcObject, null)
 })
+
+test('rejects restart after stop closes the hand landmarker', async () => {
+  await withAnimationFrame(async () => {
+    const tracker = await createHandTracker({
+      video: { readyState: 0, currentTime: 0 },
+      modelAssetUrl: '/hand.task',
+      filesetResolver: { forVisionTasks: async () => ({}) },
+      handLandmarker: {
+        async createFromOptions() {
+          return {
+            detectForVideo: () => ({ landmarks: [] }),
+            close: () => {}
+          }
+        }
+      }
+    })
+
+    tracker.stop()
+
+    assert.throws(
+      () => tracker.start(() => {}),
+      /closed/
+    )
+  })
+})
+
+test('stops tracking and reports detection errors from the RAF loop', async t => {
+  await withAnimationFrame(async callbacks => {
+    const error = new Error('detect failed')
+    const reported = []
+    const warnings = []
+    let closeCount = 0
+    t.mock.method(console, 'warn', (...args) => warnings.push(args))
+    const tracker = await createHandTracker({
+      video: { readyState: 2, currentTime: 1 },
+      modelAssetUrl: '/hand.task',
+      filesetResolver: { forVisionTasks: async () => ({}) },
+      handLandmarker: {
+        async createFromOptions() {
+          return {
+            detectForVideo: () => {
+              throw error
+            },
+            close: () => {
+              closeCount++
+            }
+          }
+        }
+      }
+    })
+
+    tracker.start(() => {}, err => reported.push(err))
+
+    assert.deepEqual(reported, [error])
+    assert.equal(warnings.length, 1)
+    assert.equal(closeCount, 1)
+    assert.equal(callbacks.length, 0)
+    assert.throws(
+      () => tracker.start(() => {}),
+      /closed/
+    )
+  })
+})

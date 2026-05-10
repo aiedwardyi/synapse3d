@@ -43,10 +43,11 @@ export async function createHandTracker({
 
   let rafId = null
   let running = false
+  let closed = false
   let lastTimestamp = 0
   let lastVideoTime = null
 
-  function tick(onLandmarks) {
+  function tick(onLandmarks, onError) {
     if (!running) return
 
     if (video.readyState >= HAVE_CURRENT_DATA && hasNewVideoFrame()) {
@@ -54,25 +55,42 @@ export async function createHandTracker({
       const now = performance.now()
       const timestamp = now > lastTimestamp ? now : lastTimestamp + 1
       lastTimestamp = timestamp
-      const result = landmarker.detectForVideo(video, timestamp)
-      onLandmarks(result)
+      try {
+        const result = landmarker.detectForVideo(video, timestamp)
+        onLandmarks(result)
+      } catch (err) {
+        console.warn('Hand tracking stopped after detection error:', err)
+        closeTracker()
+        onError?.(err)
+        return
+      }
     }
 
-    rafId = requestAnimationFrame(() => tick(onLandmarks))
+    rafId = requestAnimationFrame(() => tick(onLandmarks, onError))
   }
 
   return {
-    start(onLandmarks) {
+    start(onLandmarks, onError) {
+      if (closed) {
+        throw new Error('Hand tracker is closed. Create a new tracker instance before restarting.')
+      }
       if (running) return
       running = true
-      tick(onLandmarks)
+      tick(onLandmarks, onError)
     },
     stop() {
-      running = false
-      if (rafId !== null) cancelAnimationFrame(rafId)
-      rafId = null
-      landmarker.close?.()
+      closeTracker()
     }
+  }
+
+  function closeTracker() {
+    if (closed) return
+
+    running = false
+    if (rafId !== null) cancelAnimationFrame(rafId)
+    rafId = null
+    landmarker.close?.()
+    closed = true
   }
 
   function hasNewVideoFrame() {
