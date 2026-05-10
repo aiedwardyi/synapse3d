@@ -10,11 +10,15 @@ const LANDMARK_COLOR = '#4a90e2'
 const CONNECTION_COLOR = '#cfd8e8'
 const LANDMARK_RADIUS = 4
 const CONNECTION_WIDTH = 2
+const FINGERTIP_CURSOR_COLOR = '#4a90e2'
+const FINGERTIP_CURSOR_PINCH_COLOR = '#e2a04a'
+const FINGERTIP_CURSOR_RADIUS = 14
+const FINGERTIP_CURSOR_WIDTH = 3
 
-// Maps a MediaPipe normalized landmark to mirrored canvas coordinates.
+// Maps a container-normalized landmark to canvas coordinates.
 export function normalizeLandmark(landmark, width, height) {
   return {
-    x: clamp((1 - landmark.x) * width, 0, Math.max(width - 1, 0)),
+    x: clamp(landmark.x * width, 0, Math.max(width - 1, 0)),
     y: clamp(landmark.y * height, 0, Math.max(height - 1, 0))
   }
 }
@@ -34,6 +38,19 @@ export function drawLandmarks(canvas, hands) {
     drawConnections(ctx, landmarks, canvas.width, canvas.height)
     drawPoints(ctx, landmarks, canvas.width, canvas.height)
   }
+}
+
+export function drawFingertipCursor(canvas, point, isPinching) {
+  const ctx = canvas.getContext('2d')
+  if (!ctx || !isDrawablePoint(point)) return
+
+  const cursorPoint = normalizeLandmark(point, canvas.width, canvas.height)
+
+  ctx.strokeStyle = isPinching ? FINGERTIP_CURSOR_PINCH_COLOR : FINGERTIP_CURSOR_COLOR
+  ctx.lineWidth = FINGERTIP_CURSOR_WIDTH
+  ctx.beginPath()
+  ctx.arc(cursorPoint.x, cursorPoint.y, FINGERTIP_CURSOR_RADIUS, 0, Math.PI * 2)
+  ctx.stroke()
 }
 
 function drawConnections(ctx, landmarks, width, height) {
@@ -64,12 +81,14 @@ function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max)
 }
 
+function isDrawablePoint(point) {
+  return point &&
+    Number.isFinite(point.x) &&
+    Number.isFinite(point.y)
+}
+
 function isDrawableHand(landmarks) {
   return Array.isArray(landmarks) &&
     landmarks.length >= 21 &&
-    landmarks.every(landmark => (
-      landmark &&
-      Number.isFinite(landmark.x) &&
-      Number.isFinite(landmark.y)
-    ))
+    landmarks.every(isDrawablePoint)
 }
