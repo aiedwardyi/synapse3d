@@ -1,7 +1,7 @@
 import ForceGraph3D from '3d-force-graph'
 import { pickVault, getCachedVault, hasVaultPermission, requestVaultPermission, parseVault } from './vault.js'
 import { initVaultControls } from './vault-controller.js'
-import { requestCameraStream, createHandTracker } from './hand-tracking.js'
+import { requestCameraStream, createHandTracker, stopVideoStream } from './hand-tracking.js'
 import { drawLandmarks } from './hand-overlay.js'
 import './style.css'
 
@@ -79,6 +79,7 @@ function initHandTracking({ button, video, canvas }) {
       video.hidden = false
       canvas.hidden = false
     } catch (err) {
+      stopVideoStream(video)
       console.warn('Hand tracking failed to start:', err)
       button.disabled = false
     }
