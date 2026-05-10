@@ -8,6 +8,7 @@ import { drawFingertipCursor, drawLandmarks } from './hand-overlay.js'
 import { createOneEuroFilter, createPinchDetector } from './gestures.js'
 import { findNodeAtScreenPoint } from './gesture-raycasting.js'
 import { applyCoverTransform, mirrorLandmarkX } from './landmark-transform.js'
+import { createMaterialTracker } from './material-tracker.js'
 import { createSelectionPanel } from './selection-panel.js'
 import './style.css'
 
@@ -59,6 +60,7 @@ let currentSelection = null
 let trackingButton = null
 let handTrackingStarted = false
 const raycaster = new THREE.Raycaster()
+const nodeMaterials = createMaterialTracker()
 
 function render(data) {
   if (!graph) {
@@ -70,11 +72,14 @@ function render(data) {
       .linkOpacity(0.3)
   }
   clearSelection()
+  nodeMaterials.disposeAll()
   graph.graphData(data)
 }
 
 function makeNodeMesh(node) {
-  const material = new THREE.MeshLambertMaterial({ color: nodeColor(node) })
+  const material = nodeMaterials.track(
+    new THREE.MeshLambertMaterial({ color: nodeColor(node) })
+  )
   const mesh = new THREE.Mesh(NODE_GEOMETRY, material)
 
   mesh.userData = {

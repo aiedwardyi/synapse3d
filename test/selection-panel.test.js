@@ -109,8 +109,15 @@ test('hide clears rendered selection details', () => {
 })
 
 function createElement(tagName) {
+  const ownerDocument = {
+    createElement(childTagName) {
+      return createElement(childTagName)
+    }
+  }
+
   const element = {
     tagName,
+    ownerDocument,
     children: [],
     hidden: false,
     className: '',
