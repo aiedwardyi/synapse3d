@@ -1,11 +1,14 @@
 import ForceGraph3D from '3d-force-graph'
+import * as THREE from 'three'
 import { pickVault, getCachedVault, hasVaultPermission, requestVaultPermission, parseVault } from './vault.js'
 import { initVaultControls } from './vault-controller.js'
 import { requestCameraStream, createHandTracker, stopVideoStream } from './hand-tracking.js'
 import { resetTrackingUiAfterError, updateTrackingButtonAfterRender } from './hand-tracking-ui.js'
 import { drawFingertipCursor, drawLandmarks } from './hand-overlay.js'
 import { createOneEuroFilter, createPinchDetector } from './gestures.js'
+import { findNodeAtScreenPoint } from './gesture-raycasting.js'
 import { applyCoverTransform, mirrorLandmarkX } from './landmark-transform.js'
+import { createSelectionPanel } from './selection-panel.js'
 import './style.css'
 
 const HAND_MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task'
@@ -23,6 +26,8 @@ const TAG_COLORS = [
 
 const DEFAULT_COLOR = '#cfd8e8'
 const MISSING_COLOR = '#4a3030'
+const HIGHLIGHT_COLOR = 0xffffff
+const NODE_GEOMETRY = new THREE.SphereGeometry(4, 16, 16)
 const FINGERTIP_FILTER_OPTIONS = {
   minCutoff: 1.0,
   beta: 0.05,
@@ -49,19 +54,67 @@ function nodeColor(node) {
 }
 
 let graph = null
+let selectionPanel = null
+let currentSelection = null
 let trackingButton = null
 let handTrackingStarted = false
+const raycaster = new THREE.Raycaster()
 
 function render(data) {
   if (!graph) {
     graph = ForceGraph3D()(document.getElementById('graph'))
       .backgroundColor('rgba(0,0,0,0)')
       .nodeLabel('label')
-      .nodeColor(nodeColor)
+      .nodeThreeObject(makeNodeMesh)
       .linkColor(() => '#cfd8e8')
       .linkOpacity(0.3)
   }
   graph.graphData(data)
+}
+
+function makeNodeMesh(node) {
+  const material = new THREE.MeshLambertMaterial({ color: nodeColor(node) })
+  const mesh = new THREE.Mesh(NODE_GEOMETRY, material)
+
+  mesh.userData = {
+    isNode: true,
+    nodeId: node.id,
+    node
+  }
+
+  return mesh
+}
+
+function applyHighlight(mesh) {
+  if (!Number.isFinite(mesh.userData.originalColor)) {
+    mesh.userData.originalColor = mesh.material.color.getHex()
+  }
+
+  mesh.material.color.setHex(HIGHLIGHT_COLOR)
+  mesh.scale.set(1.5, 1.5, 1.5)
+}
+
+function revertHighlight(mesh) {
+  if (Number.isFinite(mesh.userData.originalColor)) {
+    mesh.material.color.setHex(mesh.userData.originalColor)
+  }
+
+  mesh.scale.set(1, 1, 1)
+}
+
+function selectNode(hit) {
+  if (hit && currentSelection?.mesh === hit.mesh) return
+
+  if (currentSelection) {
+    revertHighlight(currentSelection.mesh)
+  }
+
+  currentSelection = hit || null
+
+  if (hit) {
+    applyHighlight(hit.mesh)
+    selectionPanel.show(hit.node)
+  }
 }
 
 async function loadAndRender(handle) {
@@ -138,6 +191,15 @@ function initHandTracking({ button, video, canvas }) {
 
           if (isPinching !== previousPinchState) {
             console.log('Pinch state:', isPinching)
+            if (isPinching && isViewportPoint(cursorPoint) && graph) {
+              const hit = findNodeAtScreenPoint(
+                cursorPoint,
+                graph.camera(),
+                graph.scene(),
+                raycaster
+              )
+              if (hit) selectNode(hit)
+            }
             previousPinchState = isPinching
           }
 
@@ -191,6 +253,14 @@ function isDrawablePoint(point) {
     Number.isFinite(point.y)
 }
 
+function isViewportPoint(point) {
+  return isDrawablePoint(point) &&
+    point.x >= 0 &&
+    point.x <= 1 &&
+    point.y >= 0 &&
+    point.y <= 1
+}
+
 function isDrawableHand(landmarks) {
   if (!Array.isArray(landmarks) || landmarks.length < 21) return false
 
@@ -212,6 +282,8 @@ async function init() {
   trackingButton = document.getElementById('enable-tracking')
   const handVideo = document.getElementById('hand-video')
   const handCanvas = document.getElementById('hand-overlay')
+  const selectionPanelElement = document.getElementById('selection-panel')
+  selectionPanel = createSelectionPanel(selectionPanelElement)
 
   syncOverlayCanvasSize(handCanvas)
   window.addEventListener('resize', () => syncOverlayCanvasSize(handCanvas))
