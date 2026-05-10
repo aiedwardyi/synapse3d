@@ -22,11 +22,15 @@ export function normalizeLandmark(landmark, width, height) {
 // Clears the canvas and draws every hand as dots plus skeleton lines.
 export function drawLandmarks(canvas, hands) {
   const ctx = canvas.getContext('2d')
+  if (!ctx) return
+
   ctx.clearRect(0, 0, canvas.width, canvas.height)
 
   if (!hands || hands.length === 0) return
 
   for (const landmarks of hands) {
+    if (!isDrawableHand(landmarks)) continue
+
     drawConnections(ctx, landmarks, canvas.width, canvas.height)
     drawPoints(ctx, landmarks, canvas.width, canvas.height)
   }
@@ -58,4 +62,14 @@ function drawPoints(ctx, landmarks, width, height) {
 
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max)
+}
+
+function isDrawableHand(landmarks) {
+  return Array.isArray(landmarks) &&
+    landmarks.length >= 21 &&
+    landmarks.every(landmark => (
+      landmark &&
+      typeof landmark.x === 'number' &&
+      typeof landmark.y === 'number'
+    ))
 }
