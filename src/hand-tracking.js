@@ -4,6 +4,7 @@ export const MEDIAPIPE_TASKS_VERSION = '0.10.35'
 export const WASM_BASE_URL = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MEDIAPIPE_TASKS_VERSION}/wasm`
 const HAVE_CURRENT_DATA = 2
 const TRACKER_DELEGATES = ['GPU', 'CPU']
+const DEFAULT_MAX_STALE_VIDEO_FRAMES = 120
 
 // Prompts for camera access. MUST be called from a user gesture.
 export async function requestCameraStream(constraints = { video: { width: 640, height: 480 } }) {
@@ -30,6 +31,7 @@ export async function createHandTracker({
   video,
   modelAssetUrl,
   numHands = 2,
+  maxStaleVideoFrames = DEFAULT_MAX_STALE_VIDEO_FRAMES,
   filesetResolver = FilesetResolver,
   handLandmarker = HandLandmarker
 }) {
@@ -46,27 +48,42 @@ export async function createHandTracker({
   let closed = false
   let lastTimestamp = 0
   let lastVideoTime = null
+  let staleVideoFrames = 0
+  const staleVideoFrameLimit = Math.max(1, maxStaleVideoFrames)
 
   function tick(onLandmarks, onError) {
     if (!running) return
 
-    if (video.readyState >= HAVE_CURRENT_DATA && hasNewVideoFrame()) {
-      // detectForVideo requires strictly increasing timestamps in milliseconds.
-      const now = performance.now()
-      const timestamp = now > lastTimestamp ? now : lastTimestamp + 1
-      lastTimestamp = timestamp
-      try {
-        const result = landmarker.detectForVideo(video, timestamp)
-        onLandmarks(result)
-      } catch (err) {
-        console.warn('Hand tracking stopped after detection error:', err)
-        closeTracker()
-        onError?.(err)
-        return
+    if (video.readyState >= HAVE_CURRENT_DATA) {
+      if (hasNewVideoFrame()) {
+        staleVideoFrames = 0
+        // detectForVideo requires strictly increasing timestamps in milliseconds.
+        const now = performance.now()
+        const timestamp = now > lastTimestamp ? now : lastTimestamp + 1
+        lastTimestamp = timestamp
+        try {
+          const result = landmarker.detectForVideo(video, timestamp)
+          onLandmarks(result)
+        } catch (err) {
+          stopAfterError(err, onError, 'Hand tracking stopped after detection error:')
+          return
+        }
+      } else {
+        staleVideoFrames++
+        if (staleVideoFrames >= staleVideoFrameLimit) {
+          stopAfterError(
+            new Error('Hand tracking stopped because the camera stopped producing frames.'),
+            onError,
+            'Hand tracking stopped after video frames stalled:'
+          )
+          return
+        }
       }
+    } else {
+      staleVideoFrames = 0
     }
 
-    rafId = requestAnimationFrame(() => tick(onLandmarks, onError))
+    scheduleTick(onLandmarks, onError)
   }
 
   return {
@@ -76,11 +93,15 @@ export async function createHandTracker({
       }
       if (running) return
       running = true
-      tick(onLandmarks, onError)
+      scheduleTick(onLandmarks, onError)
     },
     stop() {
       closeTracker()
     }
+  }
+
+  function scheduleTick(onLandmarks, onError) {
+    rafId = requestAnimationFrame(() => tick(onLandmarks, onError))
   }
 
   function closeTracker() {
@@ -91,6 +112,12 @@ export async function createHandTracker({
     rafId = null
     landmarker.close?.()
     closed = true
+  }
+
+  function stopAfterError(err, onError, message) {
+    console.warn(message, err)
+    closeTracker()
+    onError?.(err)
   }
 
   function hasNewVideoFrame() {

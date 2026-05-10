@@ -90,6 +90,37 @@ test('runs inference only once per video frame', async () => {
   })
 })
 
+test('starts detection on the next animation frame', async () => {
+  await withAnimationFrame(async callbacks => {
+    let detections = 0
+    const tracker = await createHandTracker({
+      video: { readyState: 2, currentTime: 1 },
+      modelAssetUrl: '/hand.task',
+      filesetResolver: { forVisionTasks: async () => ({}) },
+      handLandmarker: {
+        async createFromOptions() {
+          return {
+            detectForVideo: () => ({ landmarks: [] }),
+            close: () => {}
+          }
+        }
+      }
+    })
+
+    tracker.start(() => {
+      detections++
+    })
+
+    assert.equal(detections, 0)
+    assert.equal(callbacks.length, 1)
+
+    callbacks.shift()()
+    tracker.stop()
+
+    assert.equal(detections, 1)
+  })
+})
+
 test('stops all tracks and clears the video stream after startup failure', () => {
   const stopped = []
   const video = {
@@ -158,8 +189,51 @@ test('stops tracking and reports detection errors from the RAF loop', async t =>
     })
 
     tracker.start(() => {}, err => reported.push(err))
+    assert.deepEqual(reported, [])
+    callbacks.shift()()
 
     assert.deepEqual(reported, [error])
+    assert.equal(warnings.length, 1)
+    assert.equal(closeCount, 1)
+    assert.equal(callbacks.length, 0)
+    assert.throws(
+      () => tracker.start(() => {}),
+      /closed/
+    )
+  })
+})
+
+test('stops tracking and reports when video frames stop advancing', async t => {
+  await withAnimationFrame(async callbacks => {
+    const reported = []
+    const warnings = []
+    let closeCount = 0
+    const video = { readyState: 2, currentTime: 1 }
+    t.mock.method(console, 'warn', (...args) => warnings.push(args))
+    const tracker = await createHandTracker({
+      video,
+      modelAssetUrl: '/hand.task',
+      maxStaleVideoFrames: 2,
+      filesetResolver: { forVisionTasks: async () => ({}) },
+      handLandmarker: {
+        async createFromOptions() {
+          return {
+            detectForVideo: () => ({ landmarks: [] }),
+            close: () => {
+              closeCount++
+            }
+          }
+        }
+      }
+    })
+
+    tracker.start(() => {}, err => reported.push(err))
+    callbacks.shift()()
+    callbacks.shift()()
+    callbacks.shift()()
+
+    assert.equal(reported.length, 1)
+    assert.match(reported[0].message, /stopped producing frames/)
     assert.equal(warnings.length, 1)
     assert.equal(closeCount, 1)
     assert.equal(callbacks.length, 0)

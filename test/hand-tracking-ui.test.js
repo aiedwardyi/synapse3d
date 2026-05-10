@@ -42,3 +42,28 @@ test('resets camera and controls after a runtime tracking error', () => {
   assert.equal(video.hidden, true)
   assert.equal(canvas.hidden, true)
 })
+
+test('resets controls even when stopping the stream fails', t => {
+  const error = new Error('stop failed')
+  const warnings = []
+  const button = { hidden: true, disabled: true }
+  const video = { hidden: false }
+  const canvas = { hidden: false }
+  t.mock.method(console, 'warn', (...args) => warnings.push(args))
+
+  resetTrackingUiAfterError({
+    button,
+    video,
+    canvas,
+    stopVideoStream: () => {
+      throw error
+    }
+  })
+
+  assert.equal(button.hidden, false)
+  assert.equal(button.disabled, false)
+  assert.equal(video.hidden, true)
+  assert.equal(canvas.hidden, true)
+  assert.equal(warnings.length, 1)
+  assert.equal(warnings[0][1], error)
+})

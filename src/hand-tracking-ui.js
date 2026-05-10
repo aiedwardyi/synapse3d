@@ -6,9 +6,16 @@ export function updateTrackingButtonAfterRender(button, trackingStarted) {
 }
 
 export function resetTrackingUiAfterError({ button, video, canvas, stopVideoStream }) {
-  stopVideoStream(video)
-  button.hidden = false
-  button.disabled = false
-  video.hidden = true
-  canvas.hidden = true
+  try {
+    stopVideoStream?.(video)
+  } catch (err) {
+    console.warn('Failed to stop video stream during tracking reset:', err)
+  }
+
+  if (button) {
+    button.hidden = false
+    button.disabled = false
+  }
+  if (video) video.hidden = true
+  if (canvas) canvas.hidden = true
 }

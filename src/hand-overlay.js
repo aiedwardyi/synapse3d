@@ -14,8 +14,8 @@ const CONNECTION_WIDTH = 2
 // Maps a MediaPipe normalized landmark to mirrored canvas coordinates.
 export function normalizeLandmark(landmark, width, height) {
   return {
-    x: (1 - landmark.x) * width,
-    y: landmark.y * height
+    x: clamp((1 - landmark.x) * width, 0, Math.max(width - 1, 0)),
+    y: clamp(landmark.y * height, 0, Math.max(height - 1, 0))
   }
 }
 
@@ -54,4 +54,8 @@ function drawPoints(ctx, landmarks, width, height) {
     ctx.arc(point.x, point.y, LANDMARK_RADIUS, 0, Math.PI * 2)
     ctx.fill()
   }
+}
+
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max)
 }
