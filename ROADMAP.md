@@ -14,7 +14,7 @@ Read an Obsidian-format vault via the File System Access API. Parse `[[wikilinks
 
 Integrate MediaPipe Tasks `HandLandmarker`. Render a ghost-hand overlay (21 landmarks) to confirm tracking quality before wiring it to interactions.
 
-## Phase 3 - Pinch to Select
+## Phase 3 - Pinch to Select ✅
 
 Detect pinch gesture (thumb-index distance threshold). Cast a ray from fingertip into the 3D scene, highlight the intersected node, show an info panel. Introduces one-euro filtering for landmark smoothing.
 

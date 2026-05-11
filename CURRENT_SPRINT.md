@@ -1,17 +1,13 @@
-# Current Sprint - Phase 3b: Raycasting and Node Selection
+# Current Sprint - Phase 4: Pinch and Hold to Drag
 
-Goal: cast a ray from the smoothed fingertip cursor into the 3D scene, detect intersected nodes, highlight the selected node, and display an info card with the node's metadata. Builds on the cover-correct landmark transform, pinch detector, and fingertip cursor shipped in Phase 3a.
+Goal: while a pinch is held, drag the selected node through 3D space along its current camera-facing depth plane. On release, the node stays at its new position (pinned). Builds on the pinch detector, fingertip cursor, and raycaster from Phase 3.
 
 ## Tasks
 
-- [ ] `src/gesture-raycasting.js` - `raycastFromPoint(screenPoint, camera, scene)` using three.js `Raycaster`. Accepts cursor in viewport [0,1] coords, converts to NDC, returns the closest intersected node mesh or null.
-- [ ] `src/selection-panel.js` - functions to create, update, and hide an info card DOM element rooted next to the graph. Pure DOM operations, no graph or scene imports.
-- [ ] Modify `src/main.js` - tag node meshes with `userData.isNode` (and node id) via `nodeThreeObject` callback on the force graph. Wire raycasting into the tracking callback: on pinch transition false -> true, raycast at the current cursor position, update selection state, show info card. On pinch transition true -> false, do nothing (selection persists until next pinch).
-- [ ] Modify `index.html` - add `<div id="selection-panel">` container, hidden by default.
-- [ ] Modify `src/style.css` - styling for `#selection-panel` (positioned, dark background matching theme, readable on top of webcam + graph), and a visual highlight cue for the selected node mesh (color/scale change applied via three.js material, not CSS).
-- [ ] `test/gesture-raycasting.test.js` - unit tests for the NDC conversion and intersection logic, using a stub camera and stub scene.
-- [ ] `test/selection-panel.test.js` - unit tests for create/update/hide DOM behavior using jsdom-style stubs.
-- [ ] Verify: pinching while the cursor sits over a node selects that node; the info card shows the node's title and tags; the highlighted mesh is visually distinct; pinching empty space deselects (or leaves selection unchanged - decide and document).
+- [ ] `src/drag.js` - `createDragController()` returning `{ beginDrag, updateDrag, endDrag, isDragging, getTargetNode }`. `beginDrag(hit, camera)` captures the target node and builds a drag plane at the node's current world position, perpendicular to the camera's forward direction. `updateDrag(cursor, camera, raycaster)` intersects the cursor ray with the drag plane and writes the result into the target node's `fx`, `fy`, `fz` (the force-layout fixed-position fields). `endDrag()` clears internal drag state but leaves `fx/fy/fz` set so the node stays pinned. Pure in the sense of taking dependencies as arguments, but stateful internally.
+- [ ] Modify `src/main.js` - on pinch transition false -> true with a hit: call `selectNode(hit)` AND `drag.beginDrag(hit, graph.camera())`. On pinch transition true -> false: call `drag.endDrag()`. Every frame while pinching and `drag.isDragging()`: call `drag.updateDrag(cursorPoint, graph.camera(), raycaster)`.
+- [ ] `test/drag.test.js` - unit tests using stub camera, raycaster, and node. Verify: no-op when nothing being dragged; `beginDrag` records target and depth; `updateDrag` writes new `fx/fy/fz` from a plane intersection; `endDrag` clears internal target but does not clear `fx/fy/fz` on the node.
+- [ ] Verify: pinching a node and moving the hand drags it through 3D space at the node's original depth. Release pinch and the node stays where it was dropped. Other nodes' force-layout positions adjust around the pinned one. Selecting then moving a second node leaves the first pinned where it was.
 
 ## Done
 
@@ -21,6 +17,6 @@ Goal: cast a ray from the smoothed fingertip cursor into the 3D scene, detect in
 
 - None.
 
-## Next sprint preview - Phase 4
+## Next sprint preview - Phase 5
 
-Extend pinch into pinch-and-hold to grab a node. Drag the node along its current depth plane (not midair 3D).
+Map open-palm hand motion to camera orbit. Hand position deltas drive azimuth and elevation. Decoupled from selection and drag so the user can navigate while a node is active.
