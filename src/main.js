@@ -10,6 +10,7 @@ import { findNodeAtScreenPoint } from './gesture-raycasting.js'
 import { applyCoverTransform, mirrorLandmarkX } from './landmark-transform.js'
 import { createMaterialTracker } from './material-tracker.js'
 import { createNodeMesh } from './node-mesh.js'
+import { createNodeSelectionHit } from './node-selection-hit.js'
 import { createPinchSelectionAttempt } from './pinch-selection-attempt.js'
 import { createSelectionPanel } from './selection-panel.js'
 import './style.css'
@@ -62,6 +63,7 @@ let trackingButton = null
 let handTrackingStarted = false
 const raycaster = new THREE.Raycaster()
 const nodeMaterials = createMaterialTracker()
+const nodeMeshes = new Map()
 
 function render(data) {
   if (!graph) {
@@ -69,19 +71,23 @@ function render(data) {
       .backgroundColor('rgba(0,0,0,0)')
       .nodeLabel('label')
       .nodeThreeObject(makeNodeMesh)
+      .onNodeClick(selectGraphNode)
       .linkColor(() => '#cfd8e8')
       .linkOpacity(0.3)
   }
   clearSelection()
+  nodeMeshes.clear()
   nodeMaterials.disposeAll()
   graph.graphData(data)
 }
 
 function makeNodeMesh(node) {
-  return createNodeMesh(node, {
+  const mesh = createNodeMesh(node, {
     color: nodeColor(node),
     materialTracker: nodeMaterials
   })
+  nodeMeshes.set(node.id, mesh)
+  return mesh
 }
 
 function applyHighlight(mesh) {
@@ -114,6 +120,11 @@ function selectNode(hit) {
     applyHighlight(hit.mesh)
     selectionPanel.show(hit.node)
   }
+}
+
+function selectGraphNode(node) {
+  const hit = createNodeSelectionHit(node, nodeMeshes)
+  if (hit) selectNode(hit)
 }
 
 function clearSelection() {
