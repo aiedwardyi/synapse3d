@@ -10,6 +10,7 @@ import { findNodeAtScreenPoint } from './gesture-raycasting.js'
 import { applyCoverTransform, mirrorLandmarkX } from './landmark-transform.js'
 import { createMaterialTracker } from './material-tracker.js'
 import { createNodeMesh } from './node-mesh.js'
+import { createPinchSelectionAttempt } from './pinch-selection-attempt.js'
 import { createSelectionPanel } from './selection-panel.js'
 import './style.css'
 
@@ -138,12 +139,14 @@ function initHandTracking({ button, video, canvas }) {
       const cursorFilterX = createOneEuroFilter(FINGERTIP_FILTER_OPTIONS)
       const cursorFilterY = createOneEuroFilter(FINGERTIP_FILTER_OPTIONS)
       const detectPinch = createPinchDetector(PINCH_DETECTOR_OPTIONS)
+      const selectionAttempt = createPinchSelectionAttempt()
       let previousPinchState = false
 
       function resetGestureState() {
         cursorFilterX.reset()
         cursorFilterY.reset()
         detectPinch.reset()
+        selectionAttempt.reset()
         previousPinchState = false
       }
 
@@ -198,16 +201,21 @@ function initHandTracking({ button, video, canvas }) {
 
           if (isPinching !== previousPinchState) {
             console.log('Pinch state:', isPinching)
-            if (isPinching && isViewportPoint(cursorPoint) && graph) {
-              const hit = findNodeAtScreenPoint(
-                cursorPoint,
-                graph.camera(),
-                graph.scene(),
-                raycaster
-              )
-              if (hit) selectNode(hit)
-            }
+            if (!isPinching) selectionAttempt.reset()
             previousPinchState = isPinching
+          }
+
+          if (selectionAttempt.shouldAttempt(isPinching) && isViewportPoint(cursorPoint) && graph) {
+            const hit = findNodeAtScreenPoint(
+              cursorPoint,
+              graph.camera(),
+              graph.scene(),
+              raycaster
+            )
+            if (hit) {
+              selectNode(hit)
+              selectionAttempt.recordHit()
+            }
           }
 
           drawFingertipCursor(canvas, cursorPoint, isPinching)
