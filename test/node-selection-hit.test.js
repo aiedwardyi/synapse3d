@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { createNodeSelectionHit } from '../src/node-selection-hit.js'
+import {
+  createNodeSelectionHit,
+  selectionWouldChange
+} from '../src/node-selection-hit.js'
 
 test('createNodeSelectionHit returns null when node has no registered mesh', () => {
   const node = { id: 'alpha' }
@@ -19,4 +22,19 @@ test('createNodeSelectionHit returns a selection hit for a registered node mesh'
     node,
     mesh
   })
+})
+
+test('selectionWouldChange returns true for a new hit', () => {
+  const mesh = { userData: {} }
+  const hit = { mesh }
+
+  assert.equal(selectionWouldChange(null, hit), true)
+})
+
+test('selectionWouldChange returns false for the already-selected mesh', () => {
+  const mesh = { userData: {} }
+  const currentSelection = { mesh }
+  const hit = { mesh }
+
+  assert.equal(selectionWouldChange(currentSelection, hit), false)
 })

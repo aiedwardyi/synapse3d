@@ -8,3 +8,7 @@ export function createNodeSelectionHit(node, nodeMeshes) {
     mesh
   }
 }
+
+export function selectionWouldChange(currentSelection, hit) {
+  return Boolean(hit && currentSelection?.mesh !== hit.mesh)
+}

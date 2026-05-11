@@ -9,8 +9,8 @@ import { createOneEuroFilter, createPinchDetector } from './gestures.js'
 import { findNodeAtScreenPoint } from './gesture-raycasting.js'
 import { applyCoverTransform, mirrorLandmarkX } from './landmark-transform.js'
 import { createMaterialTracker } from './material-tracker.js'
-import { createNodeMesh } from './node-mesh.js'
-import { createNodeSelectionHit } from './node-selection-hit.js'
+import { createNodeMesh, setNodeMeshScale } from './node-mesh.js'
+import { createNodeSelectionHit, selectionWouldChange } from './node-selection-hit.js'
 import { createPinchSelectionAttempt } from './pinch-selection-attempt.js'
 import { createSelectionPanel } from './selection-panel.js'
 import './style.css'
@@ -96,7 +96,7 @@ function applyHighlight(mesh) {
   }
 
   mesh.material.color.setHex(HIGHLIGHT_COLOR)
-  mesh.scale.set(1.5, 1.5, 1.5)
+  setNodeMeshScale(mesh, 1.5)
 }
 
 function revertHighlight(mesh) {
@@ -104,7 +104,7 @@ function revertHighlight(mesh) {
     mesh.material.color.setHex(mesh.userData.originalColor)
   }
 
-  mesh.scale.set(1, 1, 1)
+  setNodeMeshScale(mesh, 1)
 }
 
 function selectNode(hit) {
@@ -224,8 +224,9 @@ function initHandTracking({ button, video, canvas }) {
               raycaster
             )
             if (hit) {
+              const didChangeSelection = selectionWouldChange(currentSelection, hit)
               selectNode(hit)
-              selectionAttempt.recordHit()
+              if (didChangeSelection) selectionAttempt.recordHit()
             }
           }
 

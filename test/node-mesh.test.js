@@ -5,7 +5,9 @@ import { findNodeAtScreenPoint } from '../src/gesture-raycasting.js'
 import {
   createNodeMesh,
   NODE_PICK_RADIUS,
-  NODE_VISIBLE_RADIUS
+  NODE_PICK_SEGMENTS,
+  NODE_VISIBLE_RADIUS,
+  setNodeMeshScale
 } from '../src/node-mesh.js'
 
 test('createNodeMesh tags the visible mesh with node metadata', () => {
@@ -38,6 +40,24 @@ test('createNodeMesh adds a larger invisible child pick target', () => {
   assert.equal(pickTarget.material.transparent, true)
   assert.equal(pickTarget.material.opacity, 0)
   assert.equal(pickTarget.material.depthWrite, false)
+  assert.equal(pickTarget.material.colorWrite, false)
+  assert.equal(pickTarget.material.side, THREE.DoubleSide)
+  assert.equal(pickTarget.geometry.parameters.widthSegments, NODE_PICK_SEGMENTS)
+  assert.equal(pickTarget.geometry.parameters.heightSegments, NODE_PICK_SEGMENTS)
+})
+
+test('setNodeMeshScale keeps pick target world scale stable', () => {
+  const mesh = createNodeMesh({ id: 'alpha' }, {
+    color: '#4a90e2',
+    materialTracker: createMaterialTrackerStub()
+  })
+  const pickTarget = mesh.children.find(child => child.userData?.isNodePickTarget)
+
+  setNodeMeshScale(mesh, 1.5)
+
+  assert.equal(mesh.scale.x, 1.5)
+  assertApprox(pickTarget.scale.x, 1 / 1.5)
+  assertApprox(mesh.scale.x * pickTarget.scale.x, 1)
 })
 
 test('larger pick target selects the visible node when the visible sphere is missed', () => {
@@ -75,4 +95,8 @@ function createMaterialTrackerStub() {
       return material
     }
   }
+}
+
+function assertApprox(actual, expected) {
+  assert.ok(Math.abs(actual - expected) < 1e-12, `expected ${actual} to be close to ${expected}`)
 }
