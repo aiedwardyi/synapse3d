@@ -9,6 +9,7 @@ import { createOneEuroFilter, createPinchDetector } from './gestures.js'
 import { findNodeAtScreenPoint } from './gesture-raycasting.js'
 import { applyCoverTransform, mirrorLandmarkX } from './landmark-transform.js'
 import { createMaterialTracker } from './material-tracker.js'
+import { createNodeMesh } from './node-mesh.js'
 import { createSelectionPanel } from './selection-panel.js'
 import './style.css'
 
@@ -28,7 +29,6 @@ const TAG_COLORS = [
 const DEFAULT_COLOR = '#cfd8e8'
 const MISSING_COLOR = '#4a3030'
 const HIGHLIGHT_COLOR = 0xffffff
-const NODE_GEOMETRY = new THREE.SphereGeometry(4, 16, 16)
 const FINGERTIP_FILTER_OPTIONS = {
   minCutoff: 1.0,
   beta: 0.05,
@@ -77,18 +77,10 @@ function render(data) {
 }
 
 function makeNodeMesh(node) {
-  const material = nodeMaterials.track(
-    new THREE.MeshLambertMaterial({ color: nodeColor(node) })
-  )
-  const mesh = new THREE.Mesh(NODE_GEOMETRY, material)
-
-  mesh.userData = {
-    isNode: true,
-    nodeId: node.id,
-    node
-  }
-
-  return mesh
+  return createNodeMesh(node, {
+    color: nodeColor(node),
+    materialTracker: nodeMaterials
+  })
 }
 
 function applyHighlight(mesh) {
