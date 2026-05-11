@@ -40,6 +40,15 @@ export function createNodeMesh(node, { color, materialTracker }) {
   return mesh
 }
 
+export function updateNodeMesh(mesh, node, color) {
+  mesh.userData.isNode = true
+  mesh.userData.nodeId = node.id
+  mesh.userData.node = node
+  delete mesh.userData.originalColor
+  mesh.material.color.set(color)
+  setNodeMeshScale(mesh, 1)
+}
+
 export function setNodeMeshScale(mesh, scale) {
   mesh.scale.set(scale, scale, scale)
 

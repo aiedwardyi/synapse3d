@@ -9,7 +9,7 @@ import { createOneEuroFilter, createPinchDetector } from './gestures.js'
 import { findNodeAtScreenPoint } from './gesture-raycasting.js'
 import { applyCoverTransform, mirrorLandmarkX } from './landmark-transform.js'
 import { createMaterialTracker } from './material-tracker.js'
-import { createNodeMesh, setNodeMeshScale } from './node-mesh.js'
+import { createNodeMesh, setNodeMeshScale, updateNodeMesh } from './node-mesh.js'
 import { createNodeSelectionHit, selectionWouldChange } from './node-selection-hit.js'
 import { createPinchSelectionAttempt } from './pinch-selection-attempt.js'
 import { createSelectionPanel } from './selection-panel.js'
@@ -76,9 +76,8 @@ function render(data) {
       .linkOpacity(0.3)
   }
   clearSelection()
-  nodeMeshes.clear()
-  nodeMaterials.disposeAll()
   graph.graphData(data)
+  syncNodeMeshes(data.nodes || [])
 }
 
 function makeNodeMesh(node) {
@@ -88,6 +87,24 @@ function makeNodeMesh(node) {
   })
   nodeMeshes.set(node.id, mesh)
   return mesh
+}
+
+function syncNodeMeshes(nodes) {
+  const activeNodeIds = new Set()
+
+  for (const node of nodes) {
+    activeNodeIds.add(node.id)
+
+    const mesh = nodeMeshes.get(node.id)
+    if (mesh) updateNodeMesh(mesh, node, nodeColor(node))
+  }
+
+  for (const [nodeId, mesh] of nodeMeshes) {
+    if (activeNodeIds.has(nodeId)) continue
+
+    nodeMaterials.dispose(mesh.material)
+    nodeMeshes.delete(nodeId)
+  }
 }
 
 function applyHighlight(mesh) {

@@ -7,7 +7,8 @@ import {
   NODE_PICK_RADIUS,
   NODE_PICK_SEGMENTS,
   NODE_VISIBLE_RADIUS,
-  setNodeMeshScale
+  setNodeMeshScale,
+  updateNodeMesh
 } from '../src/node-mesh.js'
 
 test('createNodeMesh tags the visible mesh with node metadata', () => {
@@ -58,6 +59,27 @@ test('setNodeMeshScale keeps pick target world scale stable', () => {
   assert.equal(mesh.scale.x, 1.5)
   assertApprox(pickTarget.scale.x, 1 / 1.5)
   assertApprox(mesh.scale.x * pickTarget.scale.x, 1)
+})
+
+test('updateNodeMesh refreshes reused mesh metadata and color', () => {
+  const firstNode = { id: 'alpha', label: 'Old', tags: ['old'] }
+  const nextNode = { id: 'alpha', label: 'New', tags: ['new'] }
+  const mesh = createNodeMesh(firstNode, {
+    color: '#4a90e2',
+    materialTracker: createMaterialTrackerStub()
+  })
+
+  mesh.userData.originalColor = mesh.material.color.getHex()
+  setNodeMeshScale(mesh, 1.5)
+
+  updateNodeMesh(mesh, nextNode, '#e24a90')
+
+  assert.equal(mesh.userData.isNode, true)
+  assert.equal(mesh.userData.nodeId, nextNode.id)
+  assert.equal(mesh.userData.node, nextNode)
+  assert.equal(mesh.userData.originalColor, undefined)
+  assert.equal(mesh.material.color.getHex(), 0xe24a90)
+  assert.equal(mesh.scale.x, 1)
 })
 
 test('larger pick target selects the visible node when the visible sphere is missed', () => {

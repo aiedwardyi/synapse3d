@@ -6,6 +6,10 @@ export function createMaterialTracker() {
       materials.add(material)
       return material
     },
+    dispose(material) {
+      if (!materials.delete(material)) return
+      material.dispose()
+    },
     disposeAll() {
       for (const material of materials) {
         material.dispose()
