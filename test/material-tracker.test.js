@@ -23,6 +23,21 @@ test('disposeAll disposes tracked materials once and clears the tracker', () => 
   assert.equal(second.disposeCalls, 1)
 })
 
+test('dispose disposes one tracked material once', () => {
+  const tracker = createMaterialTracker()
+  const first = createMaterial()
+  const second = createMaterial()
+
+  tracker.track(first)
+  tracker.track(second)
+  tracker.dispose(first)
+  tracker.dispose(first)
+  tracker.disposeAll()
+
+  assert.equal(first.disposeCalls, 1)
+  assert.equal(second.disposeCalls, 1)
+})
+
 function createMaterial() {
   return {
     disposeCalls: 0,

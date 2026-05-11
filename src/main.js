@@ -9,6 +9,9 @@ import { createOneEuroFilter, createPinchDetector } from './gestures.js'
 import { findNodeAtScreenPoint } from './gesture-raycasting.js'
 import { applyCoverTransform, mirrorLandmarkX } from './landmark-transform.js'
 import { createMaterialTracker } from './material-tracker.js'
+import { createNodeMesh, setNodeMeshScale, updateNodeMesh } from './node-mesh.js'
+import { createNodeSelectionHit, selectionWouldChange } from './node-selection-hit.js'
+import { createPinchSelectionAttempt } from './pinch-selection-attempt.js'
 import { createSelectionPanel } from './selection-panel.js'
 import './style.css'
 
@@ -28,7 +31,6 @@ const TAG_COLORS = [
 const DEFAULT_COLOR = '#cfd8e8'
 const MISSING_COLOR = '#4a3030'
 const HIGHLIGHT_COLOR = 0xffffff
-const NODE_GEOMETRY = new THREE.SphereGeometry(4, 16, 16)
 const FINGERTIP_FILTER_OPTIONS = {
   minCutoff: 1.0,
   beta: 0.05,
@@ -61,6 +63,7 @@ let trackingButton = null
 let handTrackingStarted = false
 const raycaster = new THREE.Raycaster()
 const nodeMaterials = createMaterialTracker()
+const nodeMeshes = new Map()
 
 function render(data) {
   if (!graph) {
@@ -68,27 +71,40 @@ function render(data) {
       .backgroundColor('rgba(0,0,0,0)')
       .nodeLabel('label')
       .nodeThreeObject(makeNodeMesh)
+      .onNodeClick(selectGraphNode)
       .linkColor(() => '#cfd8e8')
       .linkOpacity(0.3)
   }
   clearSelection()
-  nodeMaterials.disposeAll()
   graph.graphData(data)
+  syncNodeMeshes(data.nodes || [])
 }
 
 function makeNodeMesh(node) {
-  const material = nodeMaterials.track(
-    new THREE.MeshLambertMaterial({ color: nodeColor(node) })
-  )
-  const mesh = new THREE.Mesh(NODE_GEOMETRY, material)
+  const mesh = createNodeMesh(node, {
+    color: nodeColor(node),
+    materialTracker: nodeMaterials
+  })
+  nodeMeshes.set(node.id, mesh)
+  return mesh
+}
 
-  mesh.userData = {
-    isNode: true,
-    nodeId: node.id,
-    node
+function syncNodeMeshes(nodes) {
+  const activeNodeIds = new Set()
+
+  for (const node of nodes) {
+    activeNodeIds.add(node.id)
+
+    const mesh = nodeMeshes.get(node.id)
+    if (mesh) updateNodeMesh(mesh, node, nodeColor(node))
   }
 
-  return mesh
+  for (const [nodeId, mesh] of nodeMeshes) {
+    if (activeNodeIds.has(nodeId)) continue
+
+    nodeMaterials.dispose(mesh.material)
+    nodeMeshes.delete(nodeId)
+  }
 }
 
 function applyHighlight(mesh) {
@@ -97,7 +113,7 @@ function applyHighlight(mesh) {
   }
 
   mesh.material.color.setHex(HIGHLIGHT_COLOR)
-  mesh.scale.set(1.5, 1.5, 1.5)
+  setNodeMeshScale(mesh, 1.5)
 }
 
 function revertHighlight(mesh) {
@@ -105,7 +121,7 @@ function revertHighlight(mesh) {
     mesh.material.color.setHex(mesh.userData.originalColor)
   }
 
-  mesh.scale.set(1, 1, 1)
+  setNodeMeshScale(mesh, 1)
 }
 
 function selectNode(hit) {
@@ -121,6 +137,11 @@ function selectNode(hit) {
     applyHighlight(hit.mesh)
     selectionPanel.show(hit.node)
   }
+}
+
+function selectGraphNode(node) {
+  const hit = createNodeSelectionHit(node, nodeMeshes)
+  if (hit) selectNode(hit)
 }
 
 function clearSelection() {
@@ -146,12 +167,14 @@ function initHandTracking({ button, video, canvas }) {
       const cursorFilterX = createOneEuroFilter(FINGERTIP_FILTER_OPTIONS)
       const cursorFilterY = createOneEuroFilter(FINGERTIP_FILTER_OPTIONS)
       const detectPinch = createPinchDetector(PINCH_DETECTOR_OPTIONS)
+      const selectionAttempt = createPinchSelectionAttempt()
       let previousPinchState = false
 
       function resetGestureState() {
         cursorFilterX.reset()
         cursorFilterY.reset()
         detectPinch.reset()
+        selectionAttempt.reset()
         previousPinchState = false
       }
 
@@ -206,16 +229,22 @@ function initHandTracking({ button, video, canvas }) {
 
           if (isPinching !== previousPinchState) {
             console.log('Pinch state:', isPinching)
-            if (isPinching && isViewportPoint(cursorPoint) && graph) {
-              const hit = findNodeAtScreenPoint(
-                cursorPoint,
-                graph.camera(),
-                graph.scene(),
-                raycaster
-              )
-              if (hit) selectNode(hit)
-            }
+            if (!isPinching) selectionAttempt.reset()
             previousPinchState = isPinching
+          }
+
+          if (selectionAttempt.shouldAttempt(isPinching) && isViewportPoint(cursorPoint) && graph) {
+            const hit = findNodeAtScreenPoint(
+              cursorPoint,
+              graph.camera(),
+              graph.scene(),
+              raycaster
+            )
+            if (hit) {
+              const didChangeSelection = selectionWouldChange(currentSelection, hit)
+              selectNode(hit)
+              if (didChangeSelection) selectionAttempt.recordHit()
+            }
           }
 
           drawFingertipCursor(canvas, cursorPoint, isPinching)
