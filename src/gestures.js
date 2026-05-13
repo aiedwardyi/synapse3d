@@ -2,6 +2,11 @@ const WRIST = 0
 const THUMB_TIP = 4
 const INDEX_TIP = 8
 const MIDDLE_MCP = 9
+const MIDDLE_TIP = 12
+const RING_TIP = 16
+const PINKY_TIP = 20
+
+const PALM_FINGER_TIPS = [INDEX_TIP, MIDDLE_TIP, RING_TIP, PINKY_TIP]
 
 export function pinchRatio(landmarks) {
   const thumbTip = landmarks[THUMB_TIP]
@@ -13,6 +18,21 @@ export function pinchRatio(landmarks) {
   if (handScale === 0) return Number.POSITIVE_INFINITY
 
   return pointDistance(thumbTip, indexTip) / handScale
+}
+
+export function palmOpenness(landmarks) {
+  const wrist = landmarks[WRIST]
+  const middleMcp = landmarks[MIDDLE_MCP]
+  const handScale = pointDistance(wrist, middleMcp)
+
+  if (handScale === 0) return Number.POSITIVE_INFINITY
+
+  let totalTipDistance = 0
+  for (const tipIndex of PALM_FINGER_TIPS) {
+    totalTipDistance += pointDistance(landmarks[tipIndex], middleMcp)
+  }
+
+  return (totalTipDistance / PALM_FINGER_TIPS.length) / handScale
 }
 
 export function createPinchDetector({
@@ -38,6 +58,36 @@ export function createPinchDetector({
   }
 
   return detectPinch
+}
+
+export function createPalmOpenDetector({
+  enterRatio = 2.2,
+  exitRatio = 1.8
+} = {}) {
+  let isPalmOpen = false
+
+  function detectPalmOpen(landmarks) {
+    const ratio = palmOpenness(landmarks)
+
+    if (!Number.isFinite(ratio)) {
+      isPalmOpen = false
+      return false
+    }
+
+    if (!isPalmOpen && ratio > enterRatio) {
+      isPalmOpen = true
+    } else if (isPalmOpen && ratio < exitRatio) {
+      isPalmOpen = false
+    }
+
+    return isPalmOpen
+  }
+
+  detectPalmOpen.reset = () => {
+    isPalmOpen = false
+  }
+
+  return detectPalmOpen
 }
 
 function smoothingFactor(timeElapsed, cutoff) {
