@@ -10,10 +10,14 @@ function createCamera() {
 }
 
 function createHit(node, position) {
+  const mesh = new THREE.Object3D()
+  mesh.position.copy(position)
+  mesh.updateMatrixWorld()
+
   return {
     nodeId: node.id,
     node,
-    mesh: { position: position.clone() }
+    mesh
   }
 }
 

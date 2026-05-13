@@ -11,7 +11,7 @@ import { findNodeAtScreenPoint } from './gesture-raycasting.js'
 import { applyCoverTransform, mirrorLandmarkX } from './landmark-transform.js'
 import { createMaterialTracker } from './material-tracker.js'
 import { createNodeMesh, setNodeMeshScale, updateNodeMesh } from './node-mesh.js'
-import { createNodeSelectionHit, selectionWouldChange } from './node-selection-hit.js'
+import { createNodeSelectionHit } from './node-selection-hit.js'
 import { createPinchSelectionAttempt } from './pinch-selection-attempt.js'
 import { createSelectionPanel } from './selection-panel.js'
 import './style.css'
@@ -177,6 +177,7 @@ function initHandTracking({ button, video, canvas }) {
         cursorFilterY.reset()
         detectPinch.reset()
         selectionAttempt.reset()
+        drag.endDrag()
         previousPinchState = false
       }
 
@@ -246,15 +247,15 @@ function initHandTracking({ button, video, canvas }) {
               raycaster
             )
             if (hit) {
-              const didChangeSelection = selectionWouldChange(currentSelection, hit)
               selectNode(hit)
               drag.beginDrag(hit, graph.camera())
-              if (didChangeSelection) selectionAttempt.recordHit()
+              selectionAttempt.recordHit()
             }
           }
 
-          if (drag.isDragging() && isViewportPoint(cursorPoint) && graph) {
+          if (isPinching && drag.isDragging() && isViewportPoint(cursorPoint) && graph) {
             drag.updateDrag(cursorPoint, graph.camera(), raycaster)
+            graph.d3ReheatSimulation()
           }
 
           drawFingertipCursor(canvas, cursorPoint, isPinching)

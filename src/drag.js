@@ -11,7 +11,7 @@ export function createDragController() {
   function beginDrag(hit, camera) {
     targetNode = hit.node
     camera.getWorldDirection(cameraForward)
-    nodePosition.copy(hit.mesh.position)
+    hit.mesh.getWorldPosition(nodePosition)
     dragPlane.setFromNormalAndCoplanarPoint(cameraForward, nodePosition)
   }
 
