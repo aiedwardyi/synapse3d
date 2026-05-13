@@ -67,15 +67,13 @@ test('updateDrag before beginDrag does nothing and does not throw', () => {
   const drag = createDragController()
   const camera = createCamera()
   const raycaster = new THREE.Raycaster()
-  const node = { id: 'n1', fx: undefined, fy: undefined, fz: undefined }
 
   assert.doesNotThrow(() => {
     drag.updateDrag({ x: 0.5, y: 0.5 }, camera, raycaster)
   })
 
-  assert.equal(node.fx, undefined)
-  assert.equal(node.fy, undefined)
-  assert.equal(node.fz, undefined)
+  assert.equal(drag.isDragging(), false)
+  assert.equal(drag.getTargetNode(), null)
 })
 
 test('endDrag before beginDrag does nothing and does not throw', () => {
@@ -116,6 +114,26 @@ test('updateDrag right of center moves node positive x but holds depth', () => {
   assert.ok(node.fx > 0, `fx=${node.fx} should be > 0`)
   assert.ok(Math.abs(node.fy - 0) < epsilon, `fy=${node.fy} should be ~0`)
   assert.ok(Math.abs(node.fz - (-10)) < epsilon, `fz=${node.fz} should be ~-10`)
+})
+
+test('beginDrag anchors the drag plane at the mesh world position when a parent is transformed', () => {
+  const drag = createDragController()
+  const camera = createCamera()
+  const raycaster = new THREE.Raycaster()
+  const node = { id: 'n1', fx: undefined, fy: undefined, fz: undefined }
+
+  const parent = new THREE.Object3D()
+  parent.position.set(0, 0, -10)
+  const mesh = new THREE.Object3D()
+  mesh.position.set(0, 0, -5)
+  parent.add(mesh)
+  parent.updateMatrixWorld(true)
+
+  drag.beginDrag({ nodeId: node.id, node, mesh }, camera)
+  drag.updateDrag({ x: 0.5, y: 0.5 }, camera, raycaster)
+
+  const epsilon = 1e-4
+  assert.ok(Math.abs(node.fz - (-15)) < epsilon, `fz=${node.fz} should be ~-15 (parent -10 + child -5)`)
 })
 
 test('beginDrag on a second node switches the drag target', () => {

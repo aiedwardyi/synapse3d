@@ -262,6 +262,7 @@ function initHandTracking({ button, video, canvas }) {
         },
         err => {
           console.warn('Hand tracking runtime error:', err)
+          resetGestureState()
           resetTrackingUiAfterError({ button, video, canvas, stopVideoStream })
           handTrackingStarted = false
         }
@@ -272,6 +273,7 @@ function initHandTracking({ button, video, canvas }) {
       video.hidden = false
       canvas.hidden = false
     } catch (err) {
+      drag.endDrag()
       stopVideoStream(video)
       console.warn('Hand tracking failed to start:', err)
       button.disabled = false
