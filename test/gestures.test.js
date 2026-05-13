@@ -193,6 +193,43 @@ test('createPalmOpenDetector exits open state when ratio drops below exitRatio',
   assert.equal(detectPalmOpen(createPalmRatioHand(1.7)), false)
 })
 
+test('createPalmOpenDetector treats non-finite ratios as closed without opening', () => {
+  const detectPalmOpen = createPalmOpenDetector({
+    enterRatio: 2.2,
+    exitRatio: 1.8
+  })
+
+  const degenerateHand = createPalmHand({
+    wrist: { x: 1, y: 1 },
+    middleMcp: { x: 1, y: 1 },
+    indexTip: { x: 1, y: 1 },
+    middleTip: { x: 1, y: 1 },
+    ringTip: { x: 1, y: 1 },
+    pinkyTip: { x: 1, y: 1 }
+  })
+
+  assert.equal(detectPalmOpen(degenerateHand), false)
+})
+
+test('createPalmOpenDetector closes when a degenerate frame arrives during open state', () => {
+  const detectPalmOpen = createPalmOpenDetector({
+    enterRatio: 2.2,
+    exitRatio: 1.8
+  })
+
+  const degenerateHand = createPalmHand({
+    wrist: { x: 1, y: 1 },
+    middleMcp: { x: 1, y: 1 },
+    indexTip: { x: 1, y: 1 },
+    middleTip: { x: 1, y: 1 },
+    ringTip: { x: 1, y: 1 },
+    pinkyTip: { x: 1, y: 1 }
+  })
+
+  assert.equal(detectPalmOpen(createPalmRatioHand(2.5)), true)
+  assert.equal(detectPalmOpen(degenerateHand), false)
+})
+
 test('createPalmOpenDetector reset clears open hysteresis state', () => {
   const detectPalmOpen = createPalmOpenDetector({
     enterRatio: 2.2,

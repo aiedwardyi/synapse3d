@@ -69,6 +69,11 @@ export function createPalmOpenDetector({
   function detectPalmOpen(landmarks) {
     const ratio = palmOpenness(landmarks)
 
+    if (!Number.isFinite(ratio)) {
+      isPalmOpen = false
+      return false
+    }
+
     if (!isPalmOpen && ratio > enterRatio) {
       isPalmOpen = true
     } else if (isPalmOpen && ratio < exitRatio) {
