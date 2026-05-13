@@ -43,8 +43,8 @@ const PINCH_DETECTOR_OPTIONS = {
   exitRatio: 0.55
 }
 const PALM_DETECTOR_OPTIONS = {
-  enterRatio: 2.2,
-  exitRatio: 1.8
+  enterRatio: 0.75,
+  exitRatio: 0.55
 }
 const PALM_FILTER_OPTIONS = {
   minCutoff: 1.0,
@@ -186,7 +186,6 @@ function initHandTracking({ button, video, canvas }) {
       const selectionAttempt = createPinchSelectionAttempt()
       let previousPinchState = false
       let previousPalmOpenState = false
-      let lastPalmLogTime = 0
 
       function resetGestureState() {
         cursorFilterX.reset()
@@ -200,7 +199,6 @@ function initHandTracking({ button, video, canvas }) {
         orbit.endOrbit()
         previousPinchState = false
         previousPalmOpenState = false
-        lastPalmLogTime = 0
       }
 
       const stream = await requestCameraStream()
@@ -253,11 +251,6 @@ function initHandTracking({ button, video, canvas }) {
           const isPinching = detectPinch(sourceHand)
           const isPalmOpen = detectPalmOpen(sourceHand)
 
-          if (time - lastPalmLogTime > 0.5) {
-            console.log('Palm openness ratio:', palmOpenness(sourceHand).toFixed(3))
-            lastPalmLogTime = time
-          }
-
           if (isPinching !== previousPinchState) {
             console.log('Pinch state:', isPinching)
             if (!isPinching) {
@@ -268,7 +261,7 @@ function initHandTracking({ button, video, canvas }) {
           }
 
           if (isPalmOpen !== previousPalmOpenState) {
-            console.log('Palm open state:', isPalmOpen)
+            console.log('Palm state:', isPalmOpen, 'ratio:', palmOpenness(sourceHand).toFixed(3))
             previousPalmOpenState = isPalmOpen
           }
 
