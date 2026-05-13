@@ -6,6 +6,7 @@ import { requestCameraStream, createHandTracker, stopVideoStream } from './hand-
 import { resetTrackingUiAfterError, updateTrackingButtonAfterRender } from './hand-tracking-ui.js'
 import { drawFingertipCursor, drawLandmarks } from './hand-overlay.js'
 import { createOneEuroFilter, createPinchDetector } from './gestures.js'
+import { createDragController } from './drag.js'
 import { findNodeAtScreenPoint } from './gesture-raycasting.js'
 import { applyCoverTransform, mirrorLandmarkX } from './landmark-transform.js'
 import { createMaterialTracker } from './material-tracker.js'
@@ -62,6 +63,7 @@ let currentSelection = null
 let trackingButton = null
 let handTrackingStarted = false
 const raycaster = new THREE.Raycaster()
+const drag = createDragController()
 const nodeMaterials = createMaterialTracker()
 const nodeMeshes = new Map()
 
@@ -229,7 +231,10 @@ function initHandTracking({ button, video, canvas }) {
 
           if (isPinching !== previousPinchState) {
             console.log('Pinch state:', isPinching)
-            if (!isPinching) selectionAttempt.reset()
+            if (!isPinching) {
+              selectionAttempt.reset()
+              drag.endDrag()
+            }
             previousPinchState = isPinching
           }
 
@@ -243,8 +248,13 @@ function initHandTracking({ button, video, canvas }) {
             if (hit) {
               const didChangeSelection = selectionWouldChange(currentSelection, hit)
               selectNode(hit)
+              drag.beginDrag(hit, graph.camera())
               if (didChangeSelection) selectionAttempt.recordHit()
             }
+          }
+
+          if (drag.isDragging() && isViewportPoint(cursorPoint) && graph) {
+            drag.updateDrag(cursorPoint, graph.camera(), raycaster)
           }
 
           drawFingertipCursor(canvas, cursorPoint, isPinching)
