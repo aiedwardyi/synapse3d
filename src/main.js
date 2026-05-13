@@ -260,18 +260,13 @@ function initHandTracking({ button, video, canvas }) {
 
           const wristPoint = firstHand[0]
           const palmPoint = {
-            x: palmFilterX(wristPoint.x, time),
-            y: palmFilterY(wristPoint.y, time)
+            x: palmFilterX(clampUnit(wristPoint.x), time),
+            y: palmFilterY(clampUnit(wristPoint.y), time)
           }
           const shouldOrbit = isPalmOpen && !isPinching && graph !== null
 
           if (shouldOrbit && !orbit.isOrbiting()) {
-            const cameraState = graph.cameraPosition()
-            const lookAtTarget = new THREE.Vector3(
-              cameraState.lookAt?.x ?? 0,
-              cameraState.lookAt?.y ?? 0,
-              cameraState.lookAt?.z ?? 0
-            )
+            const lookAtTarget = graph.controls().target.clone()
             orbit.beginOrbit(palmPoint, graph.camera(), lookAtTarget)
           } else if (!shouldOrbit && orbit.isOrbiting()) {
             orbit.endOrbit()
@@ -358,6 +353,12 @@ function isViewportPoint(point) {
     point.x <= 1 &&
     point.y >= 0 &&
     point.y <= 1
+}
+
+function clampUnit(value) {
+  if (value < 0) return 0
+  if (value > 1) return 1
+  return value
 }
 
 function isDrawableHand(landmarks) {
