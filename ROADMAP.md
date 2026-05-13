@@ -18,7 +18,7 @@ Integrate MediaPipe Tasks `HandLandmarker`. Render a ghost-hand overlay (21 land
 
 Detect pinch gesture (thumb-index distance threshold). Cast a ray from fingertip into the 3D scene, highlight the intersected node, show an info panel. Introduces one-euro filtering for landmark smoothing.
 
-## Phase 4 - Pinch and Hold to Drag
+## Phase 4 - Pinch and Hold to Drag ✅
 
 Extend pinch into a sustained grab. Drag the selected node along its current depth plane.
 

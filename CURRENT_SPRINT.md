@@ -1,13 +1,16 @@
-# Current Sprint - Phase 4: Pinch and Hold to Drag
+# Current Sprint - Phase 5: Open Palm to Orbit
 
-Goal: while a pinch is held, drag the selected node through 3D space along its current camera-facing depth plane. On release, the node stays at its new position (pinned). Builds on the pinch detector, fingertip cursor, and raycaster from Phase 3.
+Goal: detect an open-palm gesture; while the palm is open, hand motion drives camera orbit around the graph's center. Azimuth (yaw) responds to horizontal hand motion, elevation (pitch) to vertical. Decoupled from selection and drag so the user can navigate while a node is highlighted or pinned.
 
 ## Tasks
 
-- [ ] `src/drag.js` - `createDragController()` returning `{ beginDrag, updateDrag, endDrag, isDragging, getTargetNode }`. `beginDrag(hit, camera)` captures the target node and builds a drag plane at the node's current world position, perpendicular to the camera's forward direction. `updateDrag(cursor, camera, raycaster)` intersects the cursor ray with the drag plane and writes the result into the target node's `fx`, `fy`, `fz` (the force-layout fixed-position fields). `endDrag()` clears internal drag state but leaves `fx/fy/fz` set so the node stays pinned. Pure in the sense of taking dependencies as arguments, but stateful internally.
-- [ ] Modify `src/main.js` - on pinch transition false -> true with a hit: call `selectNode(hit)` AND `drag.beginDrag(hit, graph.camera())`. On pinch transition true -> false: call `drag.endDrag()`. Every frame while pinching and `drag.isDragging()`: call `drag.updateDrag(cursorPoint, graph.camera(), raycaster)`.
-- [ ] `test/drag.test.js` - unit tests using stub camera, raycaster, and node. Verify: no-op when nothing being dragged; `beginDrag` records target and depth; `updateDrag` writes new `fx/fy/fz` from a plane intersection; `endDrag` clears internal target but does not clear `fx/fy/fz` on the node.
-- [ ] Verify: pinching a node and moving the hand drags it through 3D space at the node's original depth. Release pinch and the node stays where it was dropped. Other nodes' force-layout positions adjust around the pinned one. Selecting then moving a second node leaves the first pinned where it was.
+- [ ] `src/gestures.js` - add `palmOpenness(landmarks)` returning a 0-1 ratio of how open the hand is (e.g. average fingertip-to-palm-center distance divided by hand scale), and `createPalmOpenDetector({ enterRatio, exitRatio })` returning a stateful function with hysteresis. Open palm = all four fingers extended.
+- [ ] `src/camera-orbit.js` - `createOrbitController()` returning `{ beginOrbit, updateOrbit, endOrbit, isOrbiting }`. `beginOrbit(palmAnchor, camera)` captures the starting palm position and camera spherical coords. `updateOrbit(palmPosition, camera)` computes the delta from the anchor and applies it as azimuth + elevation deltas to the camera, keeping the lookAt target fixed. `endOrbit()` clears state.
+- [ ] Modify `src/main.js` - run palm-open detection on the first hand each frame. On open transition false -> true (and no pinch active): begin orbit. While open: update orbit each frame. On close: end orbit.
+- [ ] Resolve gesture conflict: pinch and open palm are mutually exclusive. Pinch wins if both are detected (drag takes priority over orbit). Document the priority rule.
+- [ ] `test/gestures.test.js` - extend with palm-openness tests: closed fist returns low ratio, open hand returns high ratio, scale-invariant.
+- [ ] `test/camera-orbit.test.js` - state machine and delta math with a real `THREE.PerspectiveCamera`. Beginning orbit captures starting spherical coords; updating with a delta applies expected azimuth/elevation; ending clears state.
+- [ ] Verify: with vault loaded, open palm, hand moves left -> camera orbits right around the center (or whichever direction feels natural; document choice). Selected node remains selected during orbit. Pinned node positions remain pinned. Drag plane in Phase 4 was built from camera direction; verify that orbiting then re-pinching builds a fresh plane (the existing beginDrag already does this on each pinch, so this should just work).
 
 ## Done
 
@@ -17,6 +20,6 @@ Goal: while a pinch is held, drag the selected node through 3D space along its c
 
 - None.
 
-## Next sprint preview - Phase 5
+## Next sprint preview - Phase 6
 
-Map open-palm hand motion to camera orbit. Hand position deltas drive azimuth and elevation. Decoupled from selection and drag so the user can navigate while a node is active.
+Two-hand spread to zoom. Distance between palms maps to camera dolly. Spread to zoom in, pinch hands together to zoom out.
