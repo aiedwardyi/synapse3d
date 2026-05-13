@@ -22,7 +22,7 @@ Detect pinch gesture (thumb-index distance threshold). Cast a ray from fingertip
 
 Extend pinch into a sustained grab. Drag the selected node along its current depth plane.
 
-## Phase 5 - Open Palm to Orbit
+## Phase 5 - Open Palm to Orbit ✅
 
 Map open-palm hand motion to camera orbit. Hand position deltas drive azimuth and elevation. Decoupled from selection so the user can navigate while a node is active.
 
