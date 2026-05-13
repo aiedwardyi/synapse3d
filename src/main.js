@@ -5,8 +5,9 @@ import { initVaultControls } from './vault-controller.js'
 import { requestCameraStream, createHandTracker, stopVideoStream } from './hand-tracking.js'
 import { resetTrackingUiAfterError, updateTrackingButtonAfterRender } from './hand-tracking-ui.js'
 import { drawFingertipCursor, drawLandmarks } from './hand-overlay.js'
-import { createOneEuroFilter, createPinchDetector } from './gestures.js'
+import { createOneEuroFilter, createPalmOpenDetector, createPinchDetector } from './gestures.js'
 import { createDragController } from './drag.js'
+import { createOrbitController } from './camera-orbit.js'
 import { findNodeAtScreenPoint } from './gesture-raycasting.js'
 import { applyCoverTransform, mirrorLandmarkX } from './landmark-transform.js'
 import { createMaterialTracker } from './material-tracker.js'
@@ -41,6 +42,15 @@ const PINCH_DETECTOR_OPTIONS = {
   enterRatio: 0.45,
   exitRatio: 0.55
 }
+const PALM_DETECTOR_OPTIONS = {
+  enterRatio: 2.2,
+  exitRatio: 1.8
+}
+const PALM_FILTER_OPTIONS = {
+  minCutoff: 1.0,
+  beta: 0.05,
+  dCutoff: 1.0
+}
 
 // Hash the first tag to a palette color. Same tag always = same color.
 function colorForTag(tag) {
@@ -64,6 +74,7 @@ let trackingButton = null
 let handTrackingStarted = false
 const raycaster = new THREE.Raycaster()
 const drag = createDragController()
+const orbit = createOrbitController()
 const nodeMaterials = createMaterialTracker()
 const nodeMeshes = new Map()
 
@@ -168,16 +179,23 @@ function initHandTracking({ button, video, canvas }) {
     try {
       const cursorFilterX = createOneEuroFilter(FINGERTIP_FILTER_OPTIONS)
       const cursorFilterY = createOneEuroFilter(FINGERTIP_FILTER_OPTIONS)
+      const palmFilterX = createOneEuroFilter(PALM_FILTER_OPTIONS)
+      const palmFilterY = createOneEuroFilter(PALM_FILTER_OPTIONS)
       const detectPinch = createPinchDetector(PINCH_DETECTOR_OPTIONS)
+      const detectPalmOpen = createPalmOpenDetector(PALM_DETECTOR_OPTIONS)
       const selectionAttempt = createPinchSelectionAttempt()
       let previousPinchState = false
 
       function resetGestureState() {
         cursorFilterX.reset()
         cursorFilterY.reset()
+        palmFilterX.reset()
+        palmFilterY.reset()
         detectPinch.reset()
+        detectPalmOpen.reset()
         selectionAttempt.reset()
         drag.endDrag()
+        orbit.endOrbit()
         previousPinchState = false
       }
 
@@ -229,6 +247,7 @@ function initHandTracking({ button, video, canvas }) {
             y: cursorFilterY(indexTip.y, time)
           }
           const isPinching = detectPinch(sourceHand)
+          const isPalmOpen = detectPalmOpen(sourceHand)
 
           if (isPinching !== previousPinchState) {
             console.log('Pinch state:', isPinching)
@@ -237,6 +256,29 @@ function initHandTracking({ button, video, canvas }) {
               drag.endDrag()
             }
             previousPinchState = isPinching
+          }
+
+          const wristRaw = rawHands[0][0]
+          const palmPoint = {
+            x: palmFilterX(1 - wristRaw.x, time),
+            y: palmFilterY(wristRaw.y, time)
+          }
+          const shouldOrbit = isPalmOpen && !isPinching && graph !== null
+
+          if (shouldOrbit && !orbit.isOrbiting()) {
+            const cameraState = graph.cameraPosition()
+            const lookAtTarget = new THREE.Vector3(
+              cameraState.lookAt?.x ?? 0,
+              cameraState.lookAt?.y ?? 0,
+              cameraState.lookAt?.z ?? 0
+            )
+            orbit.beginOrbit(palmPoint, graph.camera(), lookAtTarget)
+          } else if (!shouldOrbit && orbit.isOrbiting()) {
+            orbit.endOrbit()
+          }
+
+          if (orbit.isOrbiting()) {
+            orbit.updateOrbit(palmPoint, graph.camera())
           }
 
           if (selectionAttempt.shouldAttempt(isPinching) && isViewportPoint(cursorPoint) && graph) {
