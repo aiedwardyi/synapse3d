@@ -5,7 +5,7 @@ import { initVaultControls } from './vault-controller.js'
 import { requestCameraStream, createHandTracker, stopVideoStream } from './hand-tracking.js'
 import { resetTrackingUiAfterError, updateTrackingButtonAfterRender } from './hand-tracking-ui.js'
 import { drawFingertipCursor, drawLandmarks } from './hand-overlay.js'
-import { createOneEuroFilter, createPalmOpenDetector, createPinchDetector, palmOpenness } from './gestures.js'
+import { createOneEuroFilter, createPalmOpenDetector, createPinchDetector } from './gestures.js'
 import { createDragController } from './drag.js'
 import { createOrbitController } from './camera-orbit.js'
 import { findNodeAtScreenPoint } from './gesture-raycasting.js'
@@ -185,7 +185,6 @@ function initHandTracking({ button, video, canvas }) {
       const detectPalmOpen = createPalmOpenDetector(PALM_DETECTOR_OPTIONS)
       const selectionAttempt = createPinchSelectionAttempt()
       let previousPinchState = false
-      let previousPalmOpenState = false
 
       function resetGestureState() {
         cursorFilterX.reset()
@@ -198,7 +197,6 @@ function initHandTracking({ button, video, canvas }) {
         drag.endDrag()
         orbit.endOrbit()
         previousPinchState = false
-        previousPalmOpenState = false
       }
 
       const stream = await requestCameraStream()
@@ -260,11 +258,6 @@ function initHandTracking({ button, video, canvas }) {
             previousPinchState = isPinching
           }
 
-          if (isPalmOpen !== previousPalmOpenState) {
-            console.log('Palm state:', isPalmOpen, 'ratio:', palmOpenness(sourceHand).toFixed(3))
-            previousPalmOpenState = isPalmOpen
-          }
-
           const wristPoint = firstHand[0]
           const palmPoint = {
             x: palmFilterX(clampUnit(wristPoint.x), time),
@@ -274,10 +267,8 @@ function initHandTracking({ button, video, canvas }) {
 
           if (shouldOrbit && !orbit.isOrbiting()) {
             const lookAtTarget = graph.controls().target.clone()
-            console.log('Orbit begin. pivot:', lookAtTarget, 'palmAnchor:', palmPoint)
             orbit.beginOrbit(palmPoint, graph.camera(), lookAtTarget)
           } else if (!shouldOrbit && orbit.isOrbiting()) {
-            console.log('Orbit end.')
             orbit.endOrbit()
           }
 
