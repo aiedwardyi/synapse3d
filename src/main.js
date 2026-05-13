@@ -258,10 +258,10 @@ function initHandTracking({ button, video, canvas }) {
             previousPinchState = isPinching
           }
 
-          const wristRaw = rawHands[0][0]
+          const wristPoint = firstHand[0]
           const palmPoint = {
-            x: palmFilterX(1 - wristRaw.x, time),
-            y: palmFilterY(wristRaw.y, time)
+            x: palmFilterX(wristPoint.x, time),
+            y: palmFilterY(wristPoint.y, time)
           }
           const shouldOrbit = isPalmOpen && !isPinching && graph !== null
 
