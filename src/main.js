@@ -114,7 +114,13 @@ function attachSelectionBloom(graph) {
     BLOOM_RADIUS,
     BLOOM_THRESHOLD
   )
-  graph.postProcessingComposer().addPass(bloomPass)
+  const composer = graph.postProcessingComposer()
+  composer.addPass(bloomPass)
+  composer.setSize(window.innerWidth, window.innerHeight)
+  // 3d-force-graph does not propagate window resizes to the post-processing composer.
+  window.addEventListener('resize', () => {
+    composer.setSize(window.innerWidth, window.innerHeight)
+  })
 }
 
 function makeNodeMesh(node) {
