@@ -27,6 +27,16 @@ test('createNodeMesh tags the visible mesh with node metadata', () => {
   assert.equal(materialTracker.materials[0], mesh.material)
 })
 
+test('createNodeMesh sets baseline emissive so non-selected nodes do not bloom', () => {
+  const mesh = createNodeMesh({ id: 'alpha' }, {
+    color: '#4a90e2',
+    materialTracker: createMaterialTrackerStub()
+  })
+
+  assert.equal(mesh.material.emissive.getHex(), 0x000000)
+  assert.equal(mesh.material.emissiveIntensity, 0)
+})
+
 test('createNodeMesh adds a larger invisible child pick target', () => {
   const mesh = createNodeMesh({ id: 'alpha' }, {
     color: '#4a90e2',
@@ -70,6 +80,10 @@ test('updateNodeMesh refreshes reused mesh metadata and color', () => {
   })
 
   mesh.userData.originalColor = mesh.material.color.getHex()
+  mesh.userData.originalEmissiveHex = 0x000000
+  mesh.userData.originalEmissiveIntensity = 0
+  mesh.material.emissive.setHex(0xffffff)
+  mesh.material.emissiveIntensity = 1.5
   setNodeMeshScale(mesh, 1.5)
 
   updateNodeMesh(mesh, nextNode, '#e24a90')
@@ -78,7 +92,11 @@ test('updateNodeMesh refreshes reused mesh metadata and color', () => {
   assert.equal(mesh.userData.nodeId, nextNode.id)
   assert.equal(mesh.userData.node, nextNode)
   assert.equal(mesh.userData.originalColor, undefined)
+  assert.equal(mesh.userData.originalEmissiveHex, undefined)
+  assert.equal(mesh.userData.originalEmissiveIntensity, undefined)
   assert.equal(mesh.material.color.getHex(), 0xe24a90)
+  assert.equal(mesh.material.emissive.getHex(), 0x000000)
+  assert.equal(mesh.material.emissiveIntensity, 0)
   assert.equal(mesh.scale.x, 1)
 })
 

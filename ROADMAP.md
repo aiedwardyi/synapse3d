@@ -26,13 +26,21 @@ Extend pinch into a sustained grab. Drag the selected node along its current dep
 
 Map open-palm hand motion to camera orbit. Hand position deltas drive azimuth and elevation. Decoupled from selection so the user can navigate while a node is active.
 
-## Phase 6 - Two-Hand Spread to Zoom
+## Phase 6 - Two-Hand Spread to Zoom ✅
 
 Detect two hands. Distance between palms maps to camera dolly. Spread to zoom in, pinch hands together to zoom out.
 
 ## Phase 7 - Polish
 
-Hover glow via UnrealBloomPass. On-screen gesture HUD showing current state. Legend overlay for first-time users. Smoothing parameter tuning pass.
+Split into 7a and 7b for review-sized PRs.
+
+### Phase 7a - Selection Bloom
+
+Hover/select glow via UnrealBloomPass on the existing 3d-force-graph post-processing composer. Selected nodes bump emissive intensity so they read as glowing relative to the rest of the graph.
+
+### Phase 7b - Gesture HUD + Legend
+
+On-screen indicator of current gesture state (idle, selecting, dragging, orbiting, zooming). First-run legend overlay showing the gesture vocabulary. Smoothing parameter tuning pass against the final visual layer.
 
 ---
 

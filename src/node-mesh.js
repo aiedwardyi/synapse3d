@@ -20,8 +20,13 @@ const NODE_PICK_MATERIAL = new THREE.MeshBasicMaterial({
 NODE_PICK_MATERIAL.colorWrite = false
 
 export function createNodeMesh(node, { color, materialTracker }) {
+  // Baseline emissive black so non-selected nodes stay below the bloom threshold.
   const material = materialTracker.track(
-    new THREE.MeshLambertMaterial({ color })
+    new THREE.MeshLambertMaterial({
+      color,
+      emissive: 0x000000,
+      emissiveIntensity: 0
+    })
   )
   const mesh = new THREE.Mesh(NODE_GEOMETRY, material)
   const pickTarget = new THREE.Mesh(NODE_PICK_GEOMETRY, NODE_PICK_MATERIAL)
@@ -45,7 +50,11 @@ export function updateNodeMesh(mesh, node, color) {
   mesh.userData.nodeId = node.id
   mesh.userData.node = node
   delete mesh.userData.originalColor
+  delete mesh.userData.originalEmissiveHex
+  delete mesh.userData.originalEmissiveIntensity
   mesh.material.color.set(color)
+  mesh.material.emissive.setHex(0x000000)
+  mesh.material.emissiveIntensity = 0
   setNodeMeshScale(mesh, 1)
 }
 
