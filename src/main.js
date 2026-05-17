@@ -148,14 +148,24 @@ function applyHighlight(mesh) {
   if (!Number.isFinite(mesh.userData.originalColor)) {
     mesh.userData.originalColor = mesh.material.color.getHex()
   }
+  if (!Number.isFinite(mesh.userData.originalEmissiveHex)) {
+    mesh.userData.originalEmissiveHex = mesh.material.emissive.getHex()
+    mesh.userData.originalEmissiveIntensity = mesh.material.emissiveIntensity
+  }
 
   mesh.material.color.setHex(HIGHLIGHT_COLOR)
+  mesh.material.emissive.setHex(HIGHLIGHT_COLOR)
+  mesh.material.emissiveIntensity = HIGHLIGHT_EMISSIVE_INTENSITY
   setNodeMeshScale(mesh, 1.5)
 }
 
 function revertHighlight(mesh) {
   if (Number.isFinite(mesh.userData.originalColor)) {
     mesh.material.color.setHex(mesh.userData.originalColor)
+  }
+  if (Number.isFinite(mesh.userData.originalEmissiveHex)) {
+    mesh.material.emissive.setHex(mesh.userData.originalEmissiveHex)
+    mesh.material.emissiveIntensity = mesh.userData.originalEmissiveIntensity
   }
 
   setNodeMeshScale(mesh, 1)
