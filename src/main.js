@@ -8,6 +8,8 @@ import { drawFingertipCursor, drawLandmarks } from './hand-overlay.js'
 import { createOneEuroFilter, createPalmOpenDetector, createPinchDetector } from './gestures.js'
 import { createDragController } from './drag.js'
 import { createOrbitController } from './camera-orbit.js'
+import { createZoomController } from './camera-zoom.js'
+import { bucketHandsByHandedness } from './handedness.js'
 import { findNodeAtScreenPoint } from './gesture-raycasting.js'
 import { applyCoverTransform, mirrorLandmarkX } from './landmark-transform.js'
 import { createMaterialTracker } from './material-tracker.js'
@@ -51,6 +53,11 @@ const PALM_FILTER_OPTIONS = {
   beta: 0.05,
   dCutoff: 1.0
 }
+const SPREAD_FILTER_OPTIONS = {
+  minCutoff: 1.0,
+  beta: 0.05,
+  dCutoff: 1.0
+}
 
 // Hash the first tag to a palette color. Same tag always = same color.
 function colorForTag(tag) {
@@ -75,6 +82,7 @@ let handTrackingStarted = false
 const raycaster = new THREE.Raycaster()
 const drag = createDragController()
 const orbit = createOrbitController()
+const zoom = createZoomController()
 const nodeMaterials = createMaterialTracker()
 const nodeMeshes = new Map()
 
@@ -181,8 +189,10 @@ function initHandTracking({ button, video, canvas }) {
       const cursorFilterY = createOneEuroFilter(FINGERTIP_FILTER_OPTIONS)
       const palmFilterX = createOneEuroFilter(PALM_FILTER_OPTIONS)
       const palmFilterY = createOneEuroFilter(PALM_FILTER_OPTIONS)
+      const spreadFilter = createOneEuroFilter(SPREAD_FILTER_OPTIONS)
       const detectPinch = createPinchDetector(PINCH_DETECTOR_OPTIONS)
-      const detectPalmOpen = createPalmOpenDetector(PALM_DETECTOR_OPTIONS)
+      const detectPalmOpenPrimary = createPalmOpenDetector(PALM_DETECTOR_OPTIONS)
+      const detectPalmOpenSecondary = createPalmOpenDetector(PALM_DETECTOR_OPTIONS)
       const selectionAttempt = createPinchSelectionAttempt()
       let previousPinchState = false
 
@@ -191,11 +201,14 @@ function initHandTracking({ button, video, canvas }) {
         cursorFilterY.reset()
         palmFilterX.reset()
         palmFilterY.reset()
+        spreadFilter.reset()
         detectPinch.reset()
-        detectPalmOpen.reset()
+        detectPalmOpenPrimary.reset()
+        detectPalmOpenSecondary.reset()
         selectionAttempt.reset()
         drag.endDrag()
         orbit.endOrbit()
+        zoom.endZoom()
         previousPinchState = false
       }
 
@@ -219,24 +232,33 @@ function initHandTracking({ button, video, canvas }) {
             return
           }
 
-          const rawHands = (result?.landmarks || []).filter(isDrawableHand)
+          const allLandmarks = result?.landmarks || []
+          const transformedByIndex = allLandmarks.map(landmarks => {
+            if (!isDrawableHand(landmarks)) return null
+            return transformHandLandmarks(landmarks, sourceW, sourceH, canvas.width, canvas.height)
+          })
+          const drawableHands = transformedByIndex.filter(hand => hand !== null)
+          drawLandmarks(canvas, drawableHands)
 
-          const transformedHands = rawHands.map(landmarks => (
-            transformHandLandmarks(
-              landmarks,
-              sourceW,
-              sourceH,
-              canvas.width,
-              canvas.height
-            )
-          ))
+          // Right hand is the primary manipulator. Left is a fallback when only the left is in frame.
+          const bucketed = bucketHandsByHandedness(result)
+          const primaryBucket = bucketed.right || bucketed.left
+          const secondaryBucket = bucketed.right ? bucketed.left : null
 
-          drawLandmarks(canvas, transformedHands)
+          if (
+            !primaryBucket ||
+            !transformedByIndex[primaryBucket.index] ||
+            !isDrawableHand(allLandmarks[primaryBucket.index])
+          ) {
+            resetGestureState()
+            return
+          }
 
-          const firstHand = transformedHands[0]
-          const sourceHand = scaleHandToSourcePixels(rawHands[0], sourceW, sourceH)
-          const indexTip = firstHand?.[8]
-          if (!sourceHand || !isDrawablePoint(indexTip)) {
+          const primaryLandmarks = allLandmarks[primaryBucket.index]
+          const primaryTransformed = transformedByIndex[primaryBucket.index]
+          const primarySource = scaleHandToSourcePixels(primaryLandmarks, sourceW, sourceH)
+          const indexTip = primaryTransformed[8]
+          if (!primarySource || !isDrawablePoint(indexTip)) {
             resetGestureState()
             return
           }
@@ -246,8 +268,8 @@ function initHandTracking({ button, video, canvas }) {
             x: cursorFilterX(indexTip.x, time),
             y: cursorFilterY(indexTip.y, time)
           }
-          const isPinching = detectPinch(sourceHand)
-          const isPalmOpen = detectPalmOpen(sourceHand)
+          const isPinching = detectPinch(primarySource)
+          const isPrimaryPalmOpen = detectPalmOpenPrimary(primarySource)
 
           if (isPinching !== previousPinchState) {
             console.log('Pinch state:', isPinching)
@@ -258,22 +280,70 @@ function initHandTracking({ button, video, canvas }) {
             previousPinchState = isPinching
           }
 
-          const wristPoint = firstHand[0]
-          const palmPoint = {
-            x: palmFilterX(clampUnit(wristPoint.x), time),
-            y: palmFilterY(clampUnit(wristPoint.y), time)
+          const primaryWrist = primaryTransformed[0]
+          const primaryPalmPoint = {
+            x: palmFilterX(clampUnit(primaryWrist.x), time),
+            y: palmFilterY(clampUnit(primaryWrist.y), time)
           }
-          const shouldOrbit = isPalmOpen && !isPinching && graph !== null
+
+          let secondaryAvailable = false
+          let isSecondaryPalmOpen = false
+          let filteredSpread = 0
+          if (
+            secondaryBucket &&
+            transformedByIndex[secondaryBucket.index] &&
+            isDrawableHand(allLandmarks[secondaryBucket.index])
+          ) {
+            const secondarySource = scaleHandToSourcePixels(
+              allLandmarks[secondaryBucket.index],
+              sourceW,
+              sourceH
+            )
+            if (secondarySource) {
+              secondaryAvailable = true
+              isSecondaryPalmOpen = detectPalmOpenSecondary(secondarySource)
+              const secondaryTransformed = transformedByIndex[secondaryBucket.index]
+              const secondaryWrist = secondaryTransformed[0]
+              const dx = clampUnit(primaryWrist.x) - clampUnit(secondaryWrist.x)
+              const dy = clampUnit(primaryWrist.y) - clampUnit(secondaryWrist.y)
+              filteredSpread = spreadFilter(Math.hypot(dx, dy), time)
+            }
+          }
+          if (!secondaryAvailable) {
+            detectPalmOpenSecondary.reset()
+          }
+
+          const shouldZoom =
+            !isPinching &&
+            secondaryAvailable &&
+            isPrimaryPalmOpen &&
+            isSecondaryPalmOpen &&
+            graph !== null
+          const shouldOrbit =
+            !isPinching &&
+            !shouldZoom &&
+            isPrimaryPalmOpen &&
+            graph !== null
+
+          if (shouldZoom && !zoom.isZooming()) {
+            const lookAtTarget = graph.controls().target.clone()
+            zoom.beginZoom(filteredSpread, graph.camera(), lookAtTarget)
+          } else if (!shouldZoom && zoom.isZooming()) {
+            zoom.endZoom()
+            spreadFilter.reset()
+          }
+          if (zoom.isZooming()) {
+            zoom.updateZoom(filteredSpread, graph.camera())
+          }
 
           if (shouldOrbit && !orbit.isOrbiting()) {
             const lookAtTarget = graph.controls().target.clone()
-            orbit.beginOrbit(palmPoint, graph.camera(), lookAtTarget)
+            orbit.beginOrbit(primaryPalmPoint, graph.camera(), lookAtTarget)
           } else if (!shouldOrbit && orbit.isOrbiting()) {
             orbit.endOrbit()
           }
-
           if (orbit.isOrbiting()) {
-            orbit.updateOrbit(palmPoint, graph.camera())
+            orbit.updateOrbit(primaryPalmPoint, graph.camera())
           }
 
           if (selectionAttempt.shouldAttempt(isPinching) && isViewportPoint(cursorPoint) && graph) {
