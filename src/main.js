@@ -1,5 +1,6 @@
 import ForceGraph3D from '3d-force-graph'
 import * as THREE from 'three'
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { pickVault, getCachedVault, hasVaultPermission, requestVaultPermission, parseVault } from './vault.js'
 import { initVaultControls } from './vault-controller.js'
 import { requestCameraStream, createHandTracker, stopVideoStream } from './hand-tracking.js'
@@ -35,6 +36,10 @@ const TAG_COLORS = [
 const DEFAULT_COLOR = '#cfd8e8'
 const MISSING_COLOR = '#4a3030'
 const HIGHLIGHT_COLOR = 0xffffff
+const HIGHLIGHT_EMISSIVE_INTENSITY = 1.5
+const BLOOM_STRENGTH = 0.8
+const BLOOM_RADIUS = 0.4
+const BLOOM_THRESHOLD = 0.85
 const FINGERTIP_FILTER_OPTIONS = {
   minCutoff: 1.0,
   beta: 0.05,
@@ -95,10 +100,21 @@ function render(data) {
       .onNodeClick(selectGraphNode)
       .linkColor(() => '#cfd8e8')
       .linkOpacity(0.3)
+    attachSelectionBloom(graph)
   }
   clearSelection()
   graph.graphData(data)
   syncNodeMeshes(data.nodes || [])
+}
+
+function attachSelectionBloom(graph) {
+  const bloomPass = new UnrealBloomPass(
+    new THREE.Vector2(window.innerWidth, window.innerHeight),
+    BLOOM_STRENGTH,
+    BLOOM_RADIUS,
+    BLOOM_THRESHOLD
+  )
+  graph.postProcessingComposer().addPass(bloomPass)
 }
 
 function makeNodeMesh(node) {
