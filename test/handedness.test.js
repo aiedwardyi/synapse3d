@@ -193,3 +193,39 @@ test('returns null for a slot when categoryName is neither Left nor Right', () =
   assert.equal(bucketed.left, null)
   assert.equal(bucketed.right, null)
 })
+
+test('treats a non-finite score as zero so a finite-score candidate wins the slot', () => {
+  const firstLandmarks = makeLandmarks(0.1)
+  const secondLandmarks = makeLandmarks(0.2)
+  const result = makeResult({
+    landmarks: [firstLandmarks, secondLandmarks],
+    handedness: [
+      [{ categoryName: 'Right', score: Number.NaN }],
+      [{ categoryName: 'Right', score: 0.8 }]
+    ]
+  })
+
+  const bucketed = bucketHandsByHandedness(result)
+
+  assert.equal(bucketed.right.index, 1)
+  assert.equal(bucketed.right.landmarks, secondLandmarks)
+  assert.equal(bucketed.left, null)
+})
+
+test('treats an Infinity score as invalid so a finite-score candidate wins the slot', () => {
+  const firstLandmarks = makeLandmarks(0.1)
+  const secondLandmarks = makeLandmarks(0.2)
+  const result = makeResult({
+    landmarks: [firstLandmarks, secondLandmarks],
+    handedness: [
+      [{ categoryName: 'Left', score: Number.POSITIVE_INFINITY }],
+      [{ categoryName: 'Left', score: 0.8 }]
+    ]
+  })
+
+  const bucketed = bucketHandsByHandedness(result)
+
+  assert.equal(bucketed.left.index, 1)
+  assert.equal(bucketed.left.landmarks, secondLandmarks)
+  assert.equal(bucketed.right, null)
+})

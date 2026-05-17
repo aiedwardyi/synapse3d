@@ -191,6 +191,7 @@ function initHandTracking({ button, video, canvas }) {
       const palmFilterY = createOneEuroFilter(PALM_FILTER_OPTIONS)
       const spreadFilter = createOneEuroFilter(SPREAD_FILTER_OPTIONS)
       const detectPinch = createPinchDetector(PINCH_DETECTOR_OPTIONS)
+      const detectPinchSecondary = createPinchDetector(PINCH_DETECTOR_OPTIONS)
       const detectPalmOpenPrimary = createPalmOpenDetector(PALM_DETECTOR_OPTIONS)
       const detectPalmOpenSecondary = createPalmOpenDetector(PALM_DETECTOR_OPTIONS)
       const selectionAttempt = createPinchSelectionAttempt()
@@ -203,6 +204,7 @@ function initHandTracking({ button, video, canvas }) {
         palmFilterY.reset()
         spreadFilter.reset()
         detectPinch.reset()
+        detectPinchSecondary.reset()
         detectPalmOpenPrimary.reset()
         detectPalmOpenSecondary.reset()
         selectionAttempt.reset()
@@ -240,16 +242,14 @@ function initHandTracking({ button, video, canvas }) {
           const drawableHands = transformedByIndex.filter(hand => hand !== null)
           drawLandmarks(canvas, drawableHands)
 
-          // Right hand is the primary manipulator. Left is a fallback when only the left is in frame.
+          // Right hand is the primary manipulator. Left is a fallback when right is absent or unusable.
           const bucketed = bucketHandsByHandedness(result)
-          const primaryBucket = bucketed.right || bucketed.left
-          const secondaryBucket = bucketed.right ? bucketed.left : null
+          const usableRight = isUsableBucket(bucketed.right, allLandmarks, transformedByIndex) ? bucketed.right : null
+          const usableLeft = isUsableBucket(bucketed.left, allLandmarks, transformedByIndex) ? bucketed.left : null
+          const primaryBucket = usableRight || usableLeft
+          const secondaryBucket = usableRight ? usableLeft : null
 
-          if (
-            !primaryBucket ||
-            !transformedByIndex[primaryBucket.index] ||
-            !isDrawableHand(allLandmarks[primaryBucket.index])
-          ) {
+          if (!primaryBucket) {
             resetGestureState()
             return
           }
@@ -288,12 +288,9 @@ function initHandTracking({ button, video, canvas }) {
 
           let secondaryAvailable = false
           let isSecondaryPalmOpen = false
+          let isSecondaryPinching = false
           let filteredSpread = 0
-          if (
-            secondaryBucket &&
-            transformedByIndex[secondaryBucket.index] &&
-            isDrawableHand(allLandmarks[secondaryBucket.index])
-          ) {
+          if (secondaryBucket) {
             const secondarySource = scaleHandToSourcePixels(
               allLandmarks[secondaryBucket.index],
               sourceW,
@@ -302,6 +299,7 @@ function initHandTracking({ button, video, canvas }) {
             if (secondarySource) {
               secondaryAvailable = true
               isSecondaryPalmOpen = detectPalmOpenSecondary(secondarySource)
+              isSecondaryPinching = detectPinchSecondary(secondarySource)
               const secondaryTransformed = transformedByIndex[secondaryBucket.index]
               const secondaryWrist = secondaryTransformed[0]
               const dx = clampUnit(primaryWrist.x) - clampUnit(secondaryWrist.x)
@@ -311,10 +309,13 @@ function initHandTracking({ button, video, canvas }) {
           }
           if (!secondaryAvailable) {
             detectPalmOpenSecondary.reset()
+            detectPinchSecondary.reset()
           }
 
+          // Pinch on either hand ends zoom. Pinch select/drag stays on the primary hand only.
+          const isAnyPinching = isPinching || isSecondaryPinching
           const shouldZoom =
-            !isPinching &&
+            !isAnyPinching &&
             secondaryAvailable &&
             isPrimaryPalmOpen &&
             isSecondaryPalmOpen &&
@@ -438,6 +439,13 @@ function isDrawableHand(landmarks) {
     if (!isDrawablePoint(landmarks[i])) return false
   }
 
+  return true
+}
+
+function isUsableBucket(bucket, allLandmarks, transformedByIndex) {
+  if (!bucket) return false
+  if (!transformedByIndex[bucket.index]) return false
+  if (!isDrawableHand(allLandmarks[bucket.index])) return false
   return true
 }
 

@@ -41,7 +41,7 @@ function readHandednessLabel(entry) {
 function readHandednessScore(entry) {
   if (!Array.isArray(entry) || entry.length === 0) return 0
   const first = entry[0]
-  if (!first || typeof first.score !== 'number') return 0
+  if (!first || typeof first.score !== 'number' || !Number.isFinite(first.score)) return 0
   return first.score
 }
 
