@@ -1,14 +1,16 @@
-# Current Sprint - Phase 6: Two-Hand Spread to Zoom
+# Current Sprint - Phase 7a: Selection Bloom
 
-Goal: detect two hands, both with open palms. Distance between palms maps to camera dolly along the current view direction. Spreading hands zooms in, bringing them together zooms out. Single-hand gestures (pinch, drag, single-hand orbit) continue to work when only one hand is visible.
+Goal: selected nodes glow via UnrealBloomPass. Bloom is wired into the 3d-force-graph post-processing composer so it composes with the existing rendering pipeline. The graph background stays transparent (webcam shows through). Non-selected nodes look unchanged; selected node reads as luminous.
 
 ## Tasks
 
-- [ ] `src/camera-zoom.js` - `createZoomController()` returning `{ beginZoom, updateZoom, endZoom, isZooming }`. `beginZoom(spread, camera, lookAtTarget)` captures the starting palm spread and the camera's current radius from the target. `updateZoom(spread, camera)` scales the radius by the ratio of current to anchor spread, repositions the camera along its current offset direction, keeps lookAt fixed. `endZoom()` clears state.
-- [ ] Modify `src/main.js` - detect two hands present. Compute palm spread as the distance between palm centers in normalized viewport coords. Resolve hand identity stably across frames (MediaPipe `result.handedness` left/right ordering, not raw array index) so left/right hand assignment does not flip frame-to-frame.
-- [ ] Define the activation rule: zoom requires two hands AND both palms open. While zoom is active, suppress single-hand orbit. Pinch on either hand still ends zoom and returns control to selection/drag.
-- [ ] `test/camera-zoom.test.js` - state machine and radius math with a real `THREE.PerspectiveCamera`. Beginning zoom captures starting radius; updating with a larger spread shrinks radius (zoom in); updating with a smaller spread grows radius (zoom out); ending clears state. Mirror the structure of `test/camera-orbit.test.js`.
-- [ ] Verify: with vault loaded, both hands open in frame, spread hands -> camera dollies in, bring hands closer -> dollies out. Single-hand orbit and pinch still work when only one hand is visible. Hand identity stays stable when hands cross or briefly leave frame.
+- [ ] Add UnrealBloomPass to the graph's post-processing composer via `graph.postProcessingComposer().addPass(...)`. Reasonable defaults: strength 0.8, radius 0.4, threshold 0.85. Worker tunes empirically.
+- [ ] Modify `src/node-mesh.js` - keep mesh creation pattern but ensure material supports emissive output. `MeshLambertMaterial` already exposes `emissive` + `emissiveIntensity` properties; no material swap needed. Document the choice.
+- [ ] Modify `src/main.js` - `applyHighlight` sets the selected mesh's `emissive` to the highlight color and `emissiveIntensity` to a tuned value (e.g. 1.5). `revertHighlight` restores both. Preserve the existing white-color + 1.5x scale highlight (bloom adds to it, does not replace it).
+- [ ] Verify transparent background still works. `graph.backgroundColor('rgba(0,0,0,0)')` must compose correctly with the bloom pass output. If bloom forces an opaque background, fall back to a clear-pass setup or set bloom's `clearColor` / alpha appropriately. Document the fix.
+- [ ] `test/node-mesh.test.js` - if it does not exist, do not create. If it exists, extend to cover the emissive property assignment.
+- [ ] No new dedicated bloom test file (this is a render-pipeline change, not a logic change). Manual visual verification only.
+- [ ] Verify: selected node glows clearly against the dark scene. Bloom does not bleed into the webcam layer. Non-selected nodes look the same as before. Pinch-drag still selects and grabs.
 
 ## Done
 
@@ -18,6 +20,6 @@ Goal: detect two hands, both with open palms. Distance between palms maps to cam
 
 - None.
 
-## Next sprint preview - Phase 7
+## Next sprint preview - Phase 7b
 
-Polish. Hover glow via UnrealBloomPass. On-screen gesture HUD showing current state. Legend overlay for first-time users. Smoothing parameter tuning pass.
+Gesture HUD showing current gesture state (idle, selecting, dragging, orbiting, zooming) in a corner overlay. First-run legend overlay listing the four gestures with hand-icon glyphs. Smoothing parameter tuning pass against the bloom-enabled visual layer.
