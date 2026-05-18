@@ -115,7 +115,7 @@ Not supported: Firefox, Safari, mobile browsers. These omissions are deliberate 
 - Obsidian vault parsing with `[[wikilink]]` edge extraction and `#tag` color clustering
 - UnrealBloomPass selection highlight
 - Live gesture HUD and first-run legend with accessibility-conscious markup
-- 172 unit tests, CI on every push
+- 172 unit tests, CI on main
 
 ## License
 
