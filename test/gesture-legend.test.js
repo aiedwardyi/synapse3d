@@ -55,6 +55,32 @@ test('show moves focus to the dismiss button', () => {
   assert.equal(findByTagName(element, 'button').focusCount, 1)
 })
 
+test('hide restores focus to the element that was focused before show', () => {
+  const element = createElement('div')
+  const previousElement = element.ownerDocument.createElement('button')
+  element.ownerDocument.activeElement = previousElement
+  const legend = createGestureLegend(element, { onDismiss() {} })
+
+  legend.show()
+  legend.hide()
+
+  assert.equal(previousElement.focusCount, 1)
+  assert.equal(element.ownerDocument.activeElement, previousElement)
+})
+
+test('dismissing restores focus to the element that was focused before show', () => {
+  const element = createElement('div')
+  const previousElement = element.ownerDocument.createElement('button')
+  element.ownerDocument.activeElement = previousElement
+  const legend = createGestureLegend(element, { onDismiss() {} })
+
+  legend.show()
+  findByTagName(element, 'button').click()
+
+  assert.equal(previousElement.focusCount, 1)
+  assert.equal(element.ownerDocument.activeElement, previousElement)
+})
+
 test('tab key stays inside the legend while visible', () => {
   const element = createElement('div')
   const legend = createGestureLegend(element, { onDismiss() {} })

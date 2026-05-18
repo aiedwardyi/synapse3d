@@ -23,11 +23,14 @@ const GESTURES = [
 
 export function createGestureLegend(element, { onDismiss } = {}) {
   let removeFocusTrap = () => {}
+  let previousActiveElement = null
 
   function hide() {
     element.hidden = true
     removeFocusTrap()
     removeFocusTrap = () => {}
+    previousActiveElement?.focus?.()
+    previousActiveElement = null
   }
 
   function dismiss() {
@@ -38,6 +41,8 @@ export function createGestureLegend(element, { onDismiss } = {}) {
   return {
     show() {
       removeFocusTrap()
+      const activeElement = element.ownerDocument?.activeElement
+      previousActiveElement = isElementInside(element, activeElement) ? null : activeElement
       const { dialog, dismissButton } = renderLegend(element, dismiss)
       element.hidden = false
       removeFocusTrap = trapFocus(element, dialog)
