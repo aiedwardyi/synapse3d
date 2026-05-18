@@ -4,8 +4,9 @@ name: Claude PR Review
 #  - pull_request opened/reopened/ready_for_review: fires once when a PR is
 #    created (or unmarked draft). Intentionally does NOT include synchronize,
 #    so subsequent commits do not re-trigger and burn Max quota.
-#  - issue_comment created: lets you say `@claude review` in any PR comment
-#    to request a fresh pass on demand.
+#  - issue_comment created: lets a trusted commenter (OWNER, MEMBER, or
+#    COLLABORATOR) say `@claude review` in any PR comment to request a fresh
+#    pass on demand. The author_association gate prevents drive-by triggers.
 on:
   pull_request:
     types: [opened, reopened, ready_for_review]
@@ -16,7 +17,7 @@ jobs:
   claude-review:
     if: |
       (github.event_name == 'pull_request' && github.event.pull_request.draft == false) ||
-      (github.event_name == 'issue_comment' && github.event.issue.pull_request != null && contains(github.event.comment.body, '@claude review'))
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request != null && contains(github.event.comment.body, '@claude review') && (github.event.comment.author_association == 'OWNER' || github.event.comment.author_association == 'MEMBER' || github.event.comment.author_association == 'COLLABORATOR'))
 
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -44,7 +45,7 @@ jobs:
           fetch-depth: 0
 
       - name: Claude Review
-        uses: anthropics/claude-code-action@beta
+        uses: anthropics/claude-code-action@12310e4417c3473095c957cb311b3cf59a38d659  # v1.0.99
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           trigger_phrase: "@claude review"
@@ -60,5 +61,5 @@ jobs:
             comments only. Be concise. If nothing material is found, say so
             in one line.
 
-        # Review availability should not block the rest of the PR checks.
+        # Quota cap or transient failure should not turn the PR check red.
         continue-on-error: true
