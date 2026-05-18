@@ -44,9 +44,11 @@ On-screen indicator of current gesture state (idle, selecting, dragging, orbitin
 
 ---
 
-## v1 - Ship
+## v1
 
-Repo polished for v1.0.0. README rewritten for portfolio audience, MIT license added, package.json metadata filled out, CI hardened (npm caching + concurrency), Vite vendor chunks split, and standard contribution/security docs added. Remaining work for full public launch: create the GitHub release, embed a demo video/GIF in README, and deploy to GitHub Pages or Vercel.
+v1.0.0 released (commit c2a8966). README with portfolio-grade structure, "What it demonstrates" framing, three in-app screenshots, three badges (CI, License, Version). MIT LICENSE, CONTRIBUTING.md, SECURITY.md in place. CI hardened with concurrency + npm caching. Vite vendor chunks split. GitHub Release published with release notes.
+
+Optional follow-ups: demo video/GIF embed in README, deploy to GitHub Pages or Vercel.
 
 ---
 
