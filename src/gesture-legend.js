@@ -22,15 +22,28 @@ const GESTURES = [
 ]
 
 export function createGestureLegend(element, { onDismiss } = {}) {
+  let removeFocusTrap = () => {}
+
+  function hide() {
+    element.hidden = true
+    removeFocusTrap()
+    removeFocusTrap = () => {}
+  }
+
+  function dismiss() {
+    hide()
+    onDismiss?.()
+  }
+
   return {
     show() {
-      const dismissButton = renderLegend(element, onDismiss)
+      removeFocusTrap()
+      const { dialog, dismissButton } = renderLegend(element, dismiss)
       element.hidden = false
+      removeFocusTrap = trapFocus(element, dialog)
       dismissButton.focus?.()
     },
-    hide() {
-      element.hidden = true
-    }
+    hide
   }
 }
 
@@ -67,7 +80,80 @@ function renderLegend(element, onDismiss) {
   dialog.appendChild(dismissButton)
 
   element.appendChild(dialog)
-  return dismissButton
+  return { dialog, dismissButton }
+}
+
+function trapFocus(element, dialog) {
+  function handleKeydown(event) {
+    if (event.key !== 'Tab' || element.hidden) return
+
+    const focusableElements = getFocusableElements(dialog)
+    if (focusableElements.length === 0) return
+
+    const firstFocusableElement = focusableElements[0]
+    const lastFocusableElement = focusableElements[focusableElements.length - 1]
+    const activeElement = element.ownerDocument?.activeElement
+    const activeElementIsInsideDialog = isElementInside(dialog, activeElement)
+
+    if (event.shiftKey) {
+      if (!activeElementIsInsideDialog || activeElement === firstFocusableElement) {
+        event.preventDefault?.()
+        lastFocusableElement.focus?.()
+      }
+      return
+    }
+
+    if (!activeElementIsInsideDialog || activeElement === lastFocusableElement) {
+      event.preventDefault?.()
+      firstFocusableElement.focus?.()
+    }
+  }
+
+  element.addEventListener?.('keydown', handleKeydown)
+  return () => element.removeEventListener?.('keydown', handleKeydown)
+}
+
+function getFocusableElements(element) {
+  if (element.querySelectorAll) {
+    return Array.from(
+      element.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')
+    ).filter(isFocusableElement)
+  }
+
+  const focusableElements = []
+  collectFocusableElements(element, focusableElements)
+  return focusableElements
+}
+
+function collectFocusableElements(element, focusableElements) {
+  if (isFocusableElement(element)) focusableElements.push(element)
+
+  for (const child of element.children || []) {
+    collectFocusableElements(child, focusableElements)
+  }
+}
+
+function isFocusableElement(element) {
+  if (!element || element.hidden || element.disabled) return false
+
+  const tagName = (element.tagName || '').toLowerCase()
+  if (['button', 'input', 'select', 'textarea'].includes(tagName)) return true
+  if (element.href) return true
+
+  const tabindex = element.getAttribute?.('tabindex') ?? element.tabIndex
+  return tabindex !== undefined && tabindex !== null && Number(tabindex) >= 0
+}
+
+function isElementInside(container, target) {
+  if (!target) return false
+  if (container === target) return true
+  if (container.contains) return container.contains(target)
+
+  for (const child of container.children || []) {
+    if (isElementInside(child, target)) return true
+  }
+
+  return false
 }
 
 function renderGestureRow(element, gesture) {

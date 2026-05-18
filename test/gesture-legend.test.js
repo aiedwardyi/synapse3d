@@ -55,6 +55,20 @@ test('show moves focus to the dismiss button', () => {
   assert.equal(findByTagName(element, 'button').focusCount, 1)
 })
 
+test('tab key stays inside the legend while visible', () => {
+  const element = createElement('div')
+  const legend = createGestureLegend(element, { onDismiss() {} })
+
+  legend.show()
+  const dismissButton = findByTagName(element, 'button')
+  const event = createKeyboardEvent('Tab')
+
+  element.keydown(event)
+
+  assert.equal(event.defaultPrevented, true)
+  assert.equal(dismissButton.focusCount, 2)
+})
+
 test('legend contains the expected gesture labels', () => {
   const element = createElement('div')
   const legend = createGestureLegend(element, { onDismiss() {} })
@@ -80,11 +94,16 @@ function findByTagName(element, tagName) {
 
 function createElement(tagName) {
   const ownerDocument = {
+    activeElement: null,
     createElement(childTagName) {
-      return createElement(childTagName)
+      return createElementWithDocument(childTagName, ownerDocument)
     }
   }
 
+  return createElementWithDocument(tagName, ownerDocument)
+}
+
+function createElementWithDocument(tagName, ownerDocument) {
   const listeners = new Map()
   const element = {
     tagName,
@@ -113,13 +132,31 @@ function createElement(tagName) {
     addEventListener(type, listener) {
       listeners.set(type, listener)
     },
+    removeEventListener(type, listener) {
+      if (listeners.get(type) === listener) listeners.delete(type)
+    },
     click() {
       listeners.get('click')?.()
     },
+    keydown(event) {
+      listeners.get('keydown')?.(event)
+    },
     focus() {
       this.focusCount += 1
+      ownerDocument.activeElement = this
     }
   }
 
   return element
+}
+
+function createKeyboardEvent(key, shiftKey = false) {
+  return {
+    key,
+    shiftKey,
+    defaultPrevented: false,
+    preventDefault() {
+      this.defaultPrevented = true
+    }
+  }
 }
