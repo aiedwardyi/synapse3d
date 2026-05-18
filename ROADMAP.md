@@ -34,13 +34,19 @@ Detect two hands. Distance between palms maps to camera dolly. Spread to zoom in
 
 Split into 7a and 7b for review-sized PRs.
 
-### Phase 7a - Selection Bloom
+### Phase 7a - Selection Bloom ✅
 
 Hover/select glow via UnrealBloomPass on the existing 3d-force-graph post-processing composer. Selected nodes bump emissive intensity so they read as glowing relative to the rest of the graph.
 
-### Phase 7b - Gesture HUD + Legend
+### Phase 7b - Gesture HUD + Legend ✅
 
-On-screen indicator of current gesture state (idle, selecting, dragging, orbiting, zooming). First-run legend overlay showing the gesture vocabulary. Smoothing parameter tuning pass against the final visual layer.
+On-screen indicator of current gesture state (idle, selecting, dragging, orbiting, zooming). First-run legend overlay showing the gesture vocabulary. Includes focus handling, Escape dismissal, and aria-live status markup for keyboard and assistive-tech access.
+
+---
+
+## v1 - Ship
+
+Repo polished for v1.0.0. README rewritten for portfolio audience, MIT license added, package.json metadata filled out, CI hardened (npm caching + concurrency), Vite vendor chunks split, and standard contribution/security docs added. Remaining work for full public launch: create the GitHub release, embed a demo video/GIF in README, and deploy to GitHub Pages or Vercel.
 
 ---
 
