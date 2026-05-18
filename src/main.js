@@ -18,6 +18,9 @@ import { createNodeMesh, setNodeMeshScale, updateNodeMesh } from './node-mesh.js
 import { createNodeSelectionHit } from './node-selection-hit.js'
 import { createPinchSelectionAttempt } from './pinch-selection-attempt.js'
 import { createSelectionPanel } from './selection-panel.js'
+import { createGestureHud } from './gesture-hud.js'
+import { createGestureLegend } from './gesture-legend.js'
+import { hasSeenLegend, markLegendSeen } from './gesture-legend-storage.js'
 import './style.css'
 
 const HAND_MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task'
@@ -81,6 +84,8 @@ function nodeColor(node) {
 
 let graph = null
 let selectionPanel = null
+let gestureHud = null
+let gestureLegend = null
 let currentSelection = null
 let trackingButton = null
 let handTrackingStarted = false
@@ -211,6 +216,13 @@ async function loadAndRender(handle) {
   console.log('Vault stats:', result.stats)
   render(result)
   updateTrackingButtonAfterRender(trackingButton, handTrackingStarted)
+  maybeShowGestureLegend()
+}
+
+function maybeShowGestureLegend() {
+  if (!gestureLegend || hasSeenLegend()) return
+
+  gestureLegend.show()
 }
 
 function initHandTracking({ button, video, canvas }) {
@@ -244,6 +256,7 @@ function initHandTracking({ button, video, canvas }) {
         orbit.endOrbit()
         zoom.endZoom()
         previousPinchState = false
+        gestureHud?.update('idle')
       }
 
       const stream = await requestCameraStream()
@@ -398,6 +411,13 @@ function initHandTracking({ button, video, canvas }) {
             graph.d3ReheatSimulation()
           }
 
+          let gestureState = 'idle'
+          if (drag.isDragging()) gestureState = 'drag'
+          else if (zoom.isZooming()) gestureState = 'zoom'
+          else if (orbit.isOrbiting()) gestureState = 'orbit'
+          else if (isPinching) gestureState = 'select'
+          gestureHud?.update(gestureState)
+
           drawFingertipCursor(canvas, cursorPoint, isPinching)
         },
         err => {
@@ -414,6 +434,7 @@ function initHandTracking({ button, video, canvas }) {
       canvas.hidden = false
     } catch (err) {
       drag.endDrag()
+      gestureHud?.update('idle')
       stopVideoStream(video)
       console.warn('Hand tracking failed to start:', err)
       button.disabled = false
@@ -493,7 +514,17 @@ async function init() {
   const handVideo = document.getElementById('hand-video')
   const handCanvas = document.getElementById('hand-overlay')
   const selectionPanelElement = document.getElementById('selection-panel')
+  const gestureHudElement = document.getElementById('gesture-hud')
+  const gestureLegendElement = document.getElementById('gesture-legend')
   selectionPanel = createSelectionPanel(selectionPanelElement)
+  gestureHud = createGestureHud(gestureHudElement)
+  gestureLegend = createGestureLegend(gestureLegendElement, {
+    onDismiss() {
+      markLegendSeen()
+      gestureLegend.hide()
+    }
+  })
+  gestureHud.update('idle')
 
   syncOverlayCanvasSize(handCanvas)
   window.addEventListener('resize', () => syncOverlayCanvasSize(handCanvas))
