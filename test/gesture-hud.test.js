@@ -41,6 +41,17 @@ test('update with the same state does not re-render', () => {
   assert.equal(element.textContent, 'Manually preserved')
 })
 
+test('update with the same state unhides the HUD after hide', () => {
+  const element = createElement('div')
+  const hud = createGestureHud(element)
+
+  hud.update('drag')
+  hud.hide()
+  hud.update('drag')
+
+  assert.equal(element.hidden, false)
+})
+
 test('show and hide toggle visibility', () => {
   const element = createElement('div')
   const hud = createGestureHud(element)

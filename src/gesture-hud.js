@@ -12,7 +12,10 @@ export function createGestureHud(element) {
   return {
     update(state) {
       const normalizedState = GESTURE_LABELS[state] ? state : 'idle'
-      if (normalizedState === lastRenderedState) return
+      if (normalizedState === lastRenderedState) {
+        element.hidden = false
+        return
+      }
 
       clearChildren(element)
 

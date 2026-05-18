@@ -60,6 +60,7 @@ function renderLegend(element, onDismiss) {
   dismissButton.className = 'gesture-legend-dismiss'
   dismissButton.textContent = 'Got it'
   dismissButton.addEventListener?.('click', () => {
+    element.hidden = true
     onDismiss?.()
   })
   dialog.appendChild(dismissButton)

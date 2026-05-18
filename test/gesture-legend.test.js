@@ -36,6 +36,16 @@ test('clicking the dismiss button fires onDismiss', () => {
   assert.equal(dismissCount, 1)
 })
 
+test('clicking the dismiss button hides the legend without onDismiss', () => {
+  const element = createElement('div')
+  const legend = createGestureLegend(element)
+
+  legend.show()
+  findByTagName(element, 'button').click()
+
+  assert.equal(element.hidden, true)
+})
+
 test('legend contains the expected gesture labels', () => {
   const element = createElement('div')
   const legend = createGestureLegend(element, { onDismiss() {} })
