@@ -43,7 +43,7 @@ export function createGestureHud(element) {
 }
 
 function renderHudGlyph(state) {
-  const activeDot = state === 'idle' ? '4' : '9'
+  const activeDot = state === 'idle' ? '4' : '6.5'
 
   return `<svg viewBox="0 0 16 16" focusable="false" aria-hidden="true"><circle cx="8" cy="8" r="${activeDot}" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="8" cy="8" r="2" fill="currentColor"/></svg>`
 }

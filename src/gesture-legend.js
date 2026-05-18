@@ -24,8 +24,9 @@ const GESTURES = [
 export function createGestureLegend(element, { onDismiss } = {}) {
   return {
     show() {
-      renderLegend(element, onDismiss)
+      const dismissButton = renderLegend(element, onDismiss)
       element.hidden = false
+      dismissButton.focus?.()
     },
     hide() {
       element.hidden = true
@@ -66,6 +67,7 @@ function renderLegend(element, onDismiss) {
   dialog.appendChild(dismissButton)
 
   element.appendChild(dialog)
+  return dismissButton
 }
 
 function renderGestureRow(element, gesture) {

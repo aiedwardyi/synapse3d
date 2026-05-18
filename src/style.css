@@ -197,7 +197,7 @@ html, body {
   display: grid;
   place-items: center;
   padding: 24px;
-  pointer-events: none;
+  pointer-events: auto;
   z-index: 30;
 }
 

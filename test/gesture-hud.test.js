@@ -52,6 +52,17 @@ test('update with the same state unhides the HUD after hide', () => {
   assert.equal(element.hidden, false)
 })
 
+test('active HUD glyph radius fits inside the viewbox', () => {
+  const element = createElement('div')
+  const hud = createGestureHud(element)
+
+  hud.update('zoom')
+
+  const radii = [...element.children[0].innerHTML.matchAll(/ r="([\d.]+)"/g)]
+    .map(match => Number(match[1]))
+  assert.ok(Math.max(...radii) <= 7.25)
+})
+
 test('show and hide toggle visibility', () => {
   const element = createElement('div')
   const hud = createGestureHud(element)

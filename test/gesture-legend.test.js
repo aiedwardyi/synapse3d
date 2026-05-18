@@ -46,6 +46,15 @@ test('clicking the dismiss button hides the legend without onDismiss', () => {
   assert.equal(element.hidden, true)
 })
 
+test('show moves focus to the dismiss button', () => {
+  const element = createElement('div')
+  const legend = createGestureLegend(element, { onDismiss() {} })
+
+  legend.show()
+
+  assert.equal(findByTagName(element, 'button').focusCount, 1)
+})
+
 test('legend contains the expected gesture labels', () => {
   const element = createElement('div')
   const legend = createGestureLegend(element, { onDismiss() {} })
@@ -86,6 +95,7 @@ function createElement(tagName) {
     textContent: '',
     type: '',
     innerHTML: '',
+    focusCount: 0,
     get firstChild() {
       return this.children[0] || null
     },
@@ -105,6 +115,9 @@ function createElement(tagName) {
     },
     click() {
       listeners.get('click')?.()
+    },
+    focus() {
+      this.focusCount += 1
     }
   }
 
