@@ -1,0 +1,64 @@
+name: Claude PR Review
+
+# Triggers:
+#  - pull_request opened/reopened/ready_for_review: fires once when a PR is
+#    created (or unmarked draft). Intentionally does NOT include synchronize,
+#    so subsequent commits do not re-trigger and burn Max quota.
+#  - issue_comment created: lets you say `@claude review` in any PR comment
+#    to request a fresh pass on demand.
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review]
+  issue_comment:
+    types: [created]
+
+jobs:
+  claude-review:
+    if: |
+      (github.event_name == 'pull_request' && github.event.pull_request.draft == false) ||
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request != null && contains(github.event.comment.body, '@claude review'))
+
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    # contents: read means the action cannot push commits or modify files even
+    # if it tried. Comment writes are explicit. id-token: write is required
+    # so the action can fetch an OIDC token and exchange it for the GitHub
+    # App installation token used to post review comments.
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      id-token: write
+
+    # If you push twice in quick succession (or comment twice), cancel the
+    # in-progress run so only the latest review lands.
+    concurrency:
+      group: claude-review-${{ github.event.pull_request.number || github.event.issue.number }}
+      cancel-in-progress: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Claude Review
+        uses: anthropics/claude-code-action@beta
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          trigger_phrase: "@claude review"
+          direct_prompt: |
+            Review this pull request. Leave inline comments on real issues and
+            a brief summary. Focus on:
+            - Correctness, edge cases, regressions
+            - Test coverage gaps
+            - Security or data-integrity risks
+            - Style and naming consistent with the surrounding code
+
+            Do NOT modify files, commit, push, or open further PRs. Review
+            comments only. Be concise. If nothing material is found, say so
+            in one line.
+
+        # Review availability should not block the rest of the PR checks.
+        continue-on-error: true
