@@ -13,3 +13,15 @@ test('selection panel is present and hidden by default', async () => {
 
   assert.match(html, /<div id="selection-panel" hidden><\/div>/)
 })
+
+test('gesture HUD is exposed as a live status region', async () => {
+  const html = await readFile(new URL('../index.html', import.meta.url), 'utf8')
+
+  assert.match(html, /<div id="gesture-hud" role="status" aria-live="polite" hidden><\/div>/)
+})
+
+test('gesture legend overlay intercepts background pointer events', async () => {
+  const css = await readFile(new URL('../src/style.css', import.meta.url), 'utf8')
+
+  assert.match(css, /#gesture-legend\s*\{[^}]*pointer-events:\s*auto;/s)
+})

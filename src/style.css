@@ -49,7 +49,7 @@ html, body {
 
 #change-vault {
   position: fixed;
-  top: 16px;
+  top: 58px;
   right: 16px;
   padding: 8px 16px;
   font-size: 13px;
@@ -70,7 +70,7 @@ html, body {
 
 #enable-tracking {
   position: fixed;
-  top: 56px;
+  top: 98px;
   right: 16px;
   padding: 8px 16px;
   font-size: 13px;
@@ -148,4 +148,134 @@ html, body {
   height: 100vh;
   pointer-events: none;
   z-index: 3;
+}
+
+#gesture-hud[hidden],
+#gesture-legend[hidden] {
+  display: none;
+}
+
+#gesture-hud {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 8px 12px;
+  background: rgba(15, 20, 35, 0.75);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(207, 216, 232, 0.15);
+  border-radius: 8px;
+  color: #cfd8e8;
+  font-size: 13px;
+  line-height: 1;
+  pointer-events: none;
+  z-index: 20;
+}
+
+.gesture-hud-glyph {
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  color: #4a90e2;
+}
+
+.gesture-hud-glyph svg {
+  width: 16px;
+  height: 16px;
+}
+
+.gesture-hud-label {
+  white-space: nowrap;
+}
+
+#gesture-legend {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  pointer-events: auto;
+  z-index: 30;
+}
+
+.gesture-legend-dialog {
+  width: min(480px, calc(100vw - 48px));
+  padding: 24px;
+  background: rgba(15, 20, 35, 0.75);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(207, 216, 232, 0.15);
+  border-radius: 12px;
+  color: #cfd8e8;
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.35);
+  pointer-events: auto;
+}
+
+.gesture-legend-dialog h2 {
+  margin-bottom: 18px;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.gesture-legend-rows {
+  display: grid;
+  gap: 14px;
+}
+
+.gesture-legend-row {
+  display: grid;
+  grid-template-columns: 32px 1fr;
+  gap: 12px;
+  align-items: center;
+}
+
+.gesture-legend-glyph {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #4a90e2;
+}
+
+.gesture-legend-glyph svg {
+  width: 32px;
+  height: 32px;
+}
+
+.gesture-legend-copy {
+  display: grid;
+  gap: 3px;
+}
+
+.gesture-legend-label {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.gesture-legend-description {
+  color: rgba(207, 216, 232, 0.78);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.gesture-legend-dismiss {
+  display: block;
+  margin: 22px 0 0 auto;
+  padding: 8px 14px;
+  background: rgba(74, 144, 226, 0.18);
+  color: #cfd8e8;
+  border: 1px solid rgba(74, 144, 226, 0.65);
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.gesture-legend-dismiss:hover {
+  background: rgba(74, 144, 226, 0.3);
+  border-color: rgba(74, 144, 226, 0.9);
 }
