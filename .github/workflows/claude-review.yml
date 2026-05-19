@@ -64,8 +64,10 @@ jobs:
           IS_CROSS=$(echo "$INFO" | jq -r '.isCrossRepository')
           BASE=$(echo "$INFO" | jq -r '.baseRefName')
           if [ "$IS_CROSS" = "true" ]; then
-            gh pr comment ${{ github.event.issue.number }} -b "Cannot run \`@claude review\` on fork PRs: doing so would expose this workflow's secrets to attacker-controlled diff content. Open a branch in the base repo or have a maintainer cherry-pick the changes."
+            # Set the skip flag first so the decision is recorded even if the
+            # explanatory comment fails to post; treat the comment as best-effort.
             echo "skip=true" >> "$GITHUB_OUTPUT"
+            gh pr comment ${{ github.event.issue.number }} -b "Cannot run \`@claude review\` on fork PRs: doing so would expose this workflow's secrets to attacker-controlled diff content. Open a branch in the base repo or have a maintainer cherry-pick the changes." || true
             exit 0
           fi
           git fetch origin "$BASE"
