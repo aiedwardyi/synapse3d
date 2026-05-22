@@ -15,7 +15,7 @@ export function createStarfield({
   color = DEFAULT_COLOR
 } = {}) {
   const starCount = Number.isFinite(count) ? Math.max(0, Math.floor(count)) : 0
-  const safeRadius = Number.isFinite(radius) && radius >= 0 ? radius : DEFAULT_RADIUS
+  const safeRadius = Number.isFinite(radius) && radius > 0 ? radius : DEFAULT_RADIUS
   const positions = new Float32Array(starCount * 3)
 
   for (let i = 0; i < starCount; i++) {

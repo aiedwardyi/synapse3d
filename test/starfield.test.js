@@ -3,8 +3,18 @@ import { test } from 'node:test'
 import * as THREE from 'three'
 import { createStarfield } from '../src/starfield.js'
 
+const DEFAULT_STAR_COUNT = 240
 const DEFAULT_RADIUS = 1200
 const RADIUS_EPSILON = 1e-6
+
+test('createStarfield uses defaults when called without arguments', () => {
+  const starfield = createStarfield()
+  const position = starfield.geometry.getAttribute('position')
+
+  assert.equal(position.count, DEFAULT_STAR_COUNT)
+  assert.equal(starfield.material.opacity, 0.28)
+  assert.equal(typeof starfield.userData.dispose, 'function')
+})
 
 test('createStarfield returns points with the requested star count', () => {
   const starfield = createStarfield({
@@ -61,7 +71,7 @@ test('createStarfield keeps stars in the outer shell', () => {
 })
 
 test('createStarfield falls back to the default radius for invalid radius input', () => {
-  for (const radius of [Number.NaN, Number.POSITIVE_INFINITY, -25]) {
+  for (const radius of [Number.NaN, Number.POSITIVE_INFINITY, -25, 0]) {
     const starfield = createStarfield({
       count: 3,
       radius
@@ -76,6 +86,7 @@ test('createStarfield falls back to the default radius for invalid radius input'
       assert.ok(Number.isFinite(x))
       assert.ok(Number.isFinite(y))
       assert.ok(Number.isFinite(z))
+      assert.ok(Math.hypot(x, y, z) >= DEFAULT_RADIUS * 0.82 - RADIUS_EPSILON)
       assert.ok(Math.hypot(x, y, z) <= DEFAULT_RADIUS + RADIUS_EPSILON)
     }
   }
