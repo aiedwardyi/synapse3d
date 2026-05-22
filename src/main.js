@@ -18,6 +18,7 @@ import { createNodeMesh, setNodeMeshScale, updateNodeMesh } from './node-mesh.js
 import { createNodeSelectionHit } from './node-selection-hit.js'
 import { createPinchSelectionAttempt } from './pinch-selection-attempt.js'
 import { createSelectionPanel } from './selection-panel.js'
+import { createStarfield } from './starfield.js'
 import { createGestureHud } from './gesture-hud.js'
 import { createGestureLegend } from './gesture-legend.js'
 import { hasSeenLegend, markLegendSeen } from './gesture-legend-storage.js'
@@ -43,6 +44,11 @@ const HIGHLIGHT_EMISSIVE_INTENSITY = 1.5
 const BLOOM_STRENGTH = 0.8
 const BLOOM_RADIUS = 0.4
 const BLOOM_THRESHOLD = 0.85
+const LINK_COLOR = '#4a90e2'
+const LINK_OPACITY = 0.42
+const LINK_DIRECTIONAL_PARTICLES = 1
+const LINK_DIRECTIONAL_PARTICLE_SPEED = 0.003
+const LINK_DIRECTIONAL_PARTICLE_WIDTH = 0.8
 const FINGERTIP_FILTER_OPTIONS = {
   minCutoff: 1.0,
   beta: 0.05,
@@ -103,13 +109,21 @@ function render(data) {
       .nodeLabel('label')
       .nodeThreeObject(makeNodeMesh)
       .onNodeClick(selectGraphNode)
-      .linkColor(() => '#cfd8e8')
-      .linkOpacity(0.3)
+      .linkColor(() => LINK_COLOR)
+      .linkOpacity(LINK_OPACITY)
+      .linkDirectionalParticles(LINK_DIRECTIONAL_PARTICLES)
+      .linkDirectionalParticleSpeed(LINK_DIRECTIONAL_PARTICLE_SPEED)
+      .linkDirectionalParticleWidth(LINK_DIRECTIONAL_PARTICLE_WIDTH)
+    attachStarfield(graph)
     attachSelectionBloom(graph)
   }
   clearSelection()
   graph.graphData(data)
   syncNodeMeshes(data.nodes || [])
+}
+
+function attachStarfield(graph) {
+  graph.scene().add(createStarfield())
 }
 
 function attachSelectionBloom(graph) {
