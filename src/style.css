@@ -230,7 +230,7 @@ html, body {
   line-height: 1;
   pointer-events: none;
   z-index: 20;
-  box-shadow: 0 0 18px rgba(74, 144, 226, 0.18);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--hud-accent) 18%, transparent);
 }
 
 .gesture-hud-glyph {
