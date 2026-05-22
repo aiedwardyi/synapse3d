@@ -81,8 +81,8 @@ test('createStarfield falls back to the default radius for invalid radius input'
   }
 })
 
-test('createStarfield handles zero, negative, and fractional counts', () => {
-  for (const count of [0, -1, -100]) {
+test('createStarfield handles zero, negative, non-finite, and fractional counts', () => {
+  for (const count of [0, -1, -100, Number.NaN, Number.POSITIVE_INFINITY]) {
     const starfield = createStarfield({ count })
 
     assert.equal(starfield.geometry.getAttribute('position').count, 0)
