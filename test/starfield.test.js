@@ -85,7 +85,8 @@ test('createStarfield uses a custom shell inner ratio', () => {
     const distance = Math.hypot(position.getX(0), position.getY(0), position.getZ(0))
 
     assert.ok(distance >= radius * innerRatio - RADIUS_EPSILON)
-    assert.ok(distance < radius * 0.82 - RADIUS_EPSILON)
+    assert.ok(Math.abs(distance - radius * innerRatio) <= RADIUS_EPSILON)
+    assert.ok(distance <= radius + RADIUS_EPSILON)
   })
 })
 
@@ -148,6 +149,14 @@ test('createStarfield validates material numeric options', () => {
   })
 
   assert.equal(upperOpacity.material.opacity, 1)
+})
+
+test('createStarfield falls back to the default color for invalid color input', () => {
+  for (const color of ['', 'not-a-color', null, Number.NaN]) {
+    const starfield = createStarfield({ count: 1, color })
+
+    assert.equal(starfield.material.color.getHexString(), 'cfd8e8')
+  }
 })
 
 function withStubbedRandom(values, runTest) {

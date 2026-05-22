@@ -6,6 +6,7 @@ const DEFAULT_SIZE = 1.2
 const DEFAULT_OPACITY = 0.28
 const DEFAULT_COLOR = '#cfd8e8'
 const DEFAULT_SHELL_INNER_RATIO = 0.82
+const HEX_COLOR_PATTERN = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i
 
 export function createStarfield({
   count = DEFAULT_STAR_COUNT,
@@ -20,6 +21,7 @@ export function createStarfield({
   const safeSize = Number.isFinite(size) && size > 0 ? size : DEFAULT_SIZE
   const safeOpacity = Number.isFinite(opacity) ? Math.min(Math.max(opacity, 0), 1) : DEFAULT_OPACITY
   const safeInnerRatio = Number.isFinite(innerRatio) ? Math.min(Math.max(innerRatio, 0), 1) : DEFAULT_SHELL_INNER_RATIO
+  const safeColor = normalizeColor(color)
   const positions = new Float32Array(starCount * 3)
 
   for (let i = 0; i < starCount; i++) {
@@ -35,7 +37,7 @@ export function createStarfield({
   geometry.computeBoundingSphere()
 
   const material = new THREE.PointsMaterial({
-    color,
+    color: safeColor,
     size: safeSize,
     transparent: true,
     opacity: safeOpacity,
@@ -50,6 +52,16 @@ export function createStarfield({
     material.dispose()
   }
   return starfield
+}
+
+function normalizeColor(color) {
+  if (typeof color === 'string') {
+    const trimmedColor = color.trim()
+    return HEX_COLOR_PATTERN.test(trimmedColor) ? trimmedColor : DEFAULT_COLOR
+  }
+  if (Number.isFinite(color) && color >= 0 && color <= 0xffffff) return color
+  if (color instanceof THREE.Color) return color
+  return DEFAULT_COLOR
 }
 
 function randomPointInShell(radius, innerRatio) {
