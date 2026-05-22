@@ -12,14 +12,18 @@ export function createStarfield({
   radius = DEFAULT_RADIUS,
   size = DEFAULT_SIZE,
   opacity = DEFAULT_OPACITY,
-  color = DEFAULT_COLOR
+  color = DEFAULT_COLOR,
+  innerRatio = DEFAULT_SHELL_INNER_RATIO
 } = {}) {
   const starCount = Number.isFinite(count) ? Math.max(0, Math.floor(count)) : 0
   const safeRadius = Number.isFinite(radius) && radius > 0 ? radius : DEFAULT_RADIUS
+  const safeSize = Number.isFinite(size) && size > 0 ? size : DEFAULT_SIZE
+  const safeOpacity = Number.isFinite(opacity) ? Math.min(Math.max(opacity, 0), 1) : DEFAULT_OPACITY
+  const safeInnerRatio = Number.isFinite(innerRatio) ? Math.min(Math.max(innerRatio, 0), 1) : DEFAULT_SHELL_INNER_RATIO
   const positions = new Float32Array(starCount * 3)
 
   for (let i = 0; i < starCount; i++) {
-    const point = randomPointInShell(safeRadius)
+    const point = randomPointInShell(safeRadius, safeInnerRatio)
     const index = i * 3
     positions[index] = point.x
     positions[index + 1] = point.y
@@ -32,9 +36,9 @@ export function createStarfield({
 
   const material = new THREE.PointsMaterial({
     color,
-    size,
+    size: safeSize,
     transparent: true,
-    opacity,
+    opacity: safeOpacity,
     depthWrite: false,
     sizeAttenuation: true
   })
@@ -48,10 +52,10 @@ export function createStarfield({
   return starfield
 }
 
-function randomPointInShell(radius) {
+function randomPointInShell(radius, innerRatio) {
   const theta = Math.random() * Math.PI * 2
   const z = Math.random() * 2 - 1
-  const innerRadius = radius * DEFAULT_SHELL_INNER_RATIO
+  const innerRadius = radius * innerRatio
   const innerRadiusCubed = innerRadius ** 3
   const radiusCubed = radius ** 3
   const distance = Math.cbrt(innerRadiusCubed + Math.random() * (radiusCubed - innerRadiusCubed))
