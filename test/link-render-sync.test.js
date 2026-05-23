@@ -162,3 +162,23 @@ test('updateCylinderLink points cylinders at the world-space end coordinate', ()
   assert.equal(line.position.x, 2)
   assert.deepEqual(lookAtTarget, new THREE.Vector3(12, 0, 5))
 })
+
+test('updateCylinderLink skips lookAt for zero-length self-links', () => {
+  let lookAtCount = 0
+  const line = {
+    position: new THREE.Vector3(),
+    scale: { z: 1 },
+    lookAt() {
+      lookAtCount += 1
+    }
+  }
+
+  updateCylinderLink(
+    line,
+    { x: 3, y: 4, z: 5 },
+    { x: 3, y: 4, z: 5 }
+  )
+
+  assert.equal(line.scale.z, 0)
+  assert.equal(lookAtCount, 0)
+})

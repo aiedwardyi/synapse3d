@@ -115,6 +115,8 @@ let trackingButton = null
 let nodeHoverLabel = null
 let handTrackingStarted = false
 let currentLinkDirectionalParticles = LINK_DIRECTIONAL_PARTICLES
+let nodeHoverLabelSize = null
+let nodeHoverLabelText = null
 const raycaster = new THREE.Raycaster()
 const drag = createDragController()
 const orbit = createOrbitController()
@@ -328,14 +330,24 @@ function updateHoverLabel(hit) {
   if (!nodeHoverLabel || !hit?.node) return
 
   const label = hoverNodeLabel(hit)
-  nodeHoverLabel.textContent = String(label)
+  if (label === undefined || label === null) {
+    hideHoverLabel()
+    return
+  }
 
-  if (!positionHoverLabel(hit.node)) return
+  const labelText = String(label)
+  if (nodeHoverLabelText !== labelText || !nodeHoverLabelSize) {
+    nodeHoverLabel.textContent = labelText
+    nodeHoverLabelText = labelText
+    nodeHoverLabelSize = measureHoverLabel()
+  }
+
+  if (!positionHoverLabel(hit.node, nodeHoverLabelSize)) return
 
   nodeHoverLabel.hidden = false
 }
 
-function positionHoverLabel(node) {
+function positionHoverLabel(node, labelSize) {
   if (!graph || !nodeHoverLabel) return false
 
   const coords = graph.graph2ScreenCoords(
@@ -349,7 +361,7 @@ function positionHoverLabel(node) {
     return false
   }
 
-  const { width, height } = measureHoverLabel()
+  const { width, height } = labelSize || measureHoverLabel()
   const horizontalMargin = 8
   const verticalMargin = 8
   const minLeft = (width / 2) + horizontalMargin
@@ -386,6 +398,10 @@ function hideHoverLabel() {
 
   nodeHoverLabel.hidden = true
   nodeHoverLabel.style.visibility = ''
+}
+
+function resetHoverLabelMeasurement() {
+  nodeHoverLabelSize = null
 }
 
 function getGraphNode(nodeId) {
@@ -824,7 +840,10 @@ async function init() {
   initEscapeHandling(gestureLegendElement)
 
   syncOverlayCanvasSize(handCanvas)
-  window.addEventListener('resize', () => syncOverlayCanvasSize(handCanvas))
+  window.addEventListener('resize', () => {
+    syncOverlayCanvasSize(handCanvas)
+    resetHoverLabelMeasurement()
+  })
 
   await initVaultControls({
     pickButton,

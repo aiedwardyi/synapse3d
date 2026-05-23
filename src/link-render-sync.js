@@ -89,17 +89,18 @@ export function updateCylinderLink(line, start, end) {
   )
 
   // Self-links use a zero-length cylinder.
-  line.scale.z = linkStartVector.distanceTo(linkEndVector)
+  const linkLength = linkStartVector.distanceTo(linkEndVector)
+  line.scale.z = linkLength
 
   if (line.parent) {
     localStartVector.copy(linkStartVector)
     line.parent.worldToLocal(localStartVector)
     line.position.copy(localStartVector)
 
-    line.lookAt(linkLookAtVector.copy(linkEndVector))
+    if (linkLength > 0) line.lookAt(linkLookAtVector.copy(linkEndVector))
   } else {
     line.position.copy(linkStartVector)
-    line.lookAt(linkEndVector)
+    if (linkLength > 0) line.lookAt(linkEndVector)
   }
 
   return true

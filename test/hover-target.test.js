@@ -34,6 +34,13 @@ test('hoverNodeLabel preserves numeric zero ids', () => {
   }), 0)
 })
 
+test('hoverNodeLabel falls back when label text is empty', () => {
+  assert.equal(hoverNodeLabel({
+    nodeId: 'fallback',
+    node: { id: 'alpha', label: '' }
+  }), 'alpha')
+})
+
 function createHit(id) {
   return {
     nodeId: id,
