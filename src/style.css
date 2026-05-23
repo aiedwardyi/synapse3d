@@ -2,6 +2,8 @@
   background: #0a0e1a;
   color: #e0e0e0;
   font-family: system-ui, sans-serif;
+  --hud-accent: #4a90e2;
+  --readout-font: ui-monospace, "Cascadia Code", "JetBrains Mono", Consolas, monospace;
 }
 
 * {
@@ -94,6 +96,61 @@ html, body {
   cursor: wait;
 }
 
+#pick-vault,
+#change-vault,
+#enable-tracking,
+#selection-panel,
+#gesture-hud,
+.gesture-legend-dialog {
+  font-family: var(--readout-font);
+}
+
+#pick-vault,
+#change-vault,
+#enable-tracking,
+#selection-panel h2,
+.selection-panel-tag,
+.gesture-hud-label,
+.gesture-legend-dialog h2,
+.gesture-legend-label,
+.gesture-legend-dismiss {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+#selection-panel::before,
+#selection-panel::after,
+#gesture-hud::before,
+#gesture-hud::after,
+.gesture-legend-dialog::before,
+.gesture-legend-dialog::after {
+  content: '';
+  position: absolute;
+  inset: 7px;
+  pointer-events: none;
+  opacity: 0.62;
+}
+
+#selection-panel::before,
+#gesture-hud::before,
+.gesture-legend-dialog::before {
+  background:
+    linear-gradient(var(--hud-accent), var(--hud-accent)) left top / 18px 1px no-repeat,
+    linear-gradient(var(--hud-accent), var(--hud-accent)) left top / 1px 18px no-repeat,
+    linear-gradient(var(--hud-accent), var(--hud-accent)) right top / 18px 1px no-repeat,
+    linear-gradient(var(--hud-accent), var(--hud-accent)) right top / 1px 18px no-repeat;
+}
+
+#selection-panel::after,
+#gesture-hud::after,
+.gesture-legend-dialog::after {
+  background:
+    linear-gradient(var(--hud-accent), var(--hud-accent)) left bottom / 18px 1px no-repeat,
+    linear-gradient(var(--hud-accent), var(--hud-accent)) left bottom / 1px 18px no-repeat,
+    linear-gradient(var(--hud-accent), var(--hud-accent)) right bottom / 18px 1px no-repeat,
+    linear-gradient(var(--hud-accent), var(--hud-accent)) right bottom / 1px 18px no-repeat;
+}
+
 #selection-panel {
   position: fixed;
   top: 16px;
@@ -173,6 +230,8 @@ html, body {
   line-height: 1;
   pointer-events: none;
   z-index: 20;
+  box-shadow: 0 0 18px rgba(74, 144, 226, 0.18);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--hud-accent) 18%, transparent);
 }
 
 .gesture-hud-glyph {
@@ -202,6 +261,7 @@ html, body {
 }
 
 .gesture-legend-dialog {
+  position: relative;
   width: min(480px, calc(100vw - 48px));
   padding: 24px;
   background: rgba(15, 20, 35, 0.75);
