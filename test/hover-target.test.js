@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { resolveHoverTarget } from '../src/hover-target.js'
+import { hoverNodeLabel, resolveHoverTarget } from '../src/hover-target.js'
 
 test('resolveHoverTarget returns null without a hit', () => {
   assert.equal(resolveHoverTarget(null), null)
@@ -25,6 +25,13 @@ test('resolveHoverTarget suppresses the dragged node', () => {
   const hit = createHit('a')
 
   assert.equal(resolveHoverTarget(hit, { draggedNodeId: 'a' }), null)
+})
+
+test('hoverNodeLabel preserves numeric zero ids', () => {
+  assert.equal(hoverNodeLabel({
+    nodeId: 0,
+    node: { id: 0 }
+  }), 0)
 })
 
 function createHit(id) {

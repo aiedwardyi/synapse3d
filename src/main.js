@@ -24,7 +24,7 @@ import { createGestureHud } from './gesture-hud.js'
 import { createGestureLegend } from './gesture-legend.js'
 import { hasSeenLegend, markLegendSeen } from './gesture-legend-storage.js'
 import { linkDirectionalParticlesForGestureState } from './gesture-particles.js'
-import { resolveHoverTarget } from './hover-target.js'
+import { hoverNodeLabel, resolveHoverTarget } from './hover-target.js'
 import {
   createIncidentLinkMap,
   finiteGraphCoord,
@@ -327,7 +327,7 @@ function clearHoverTarget() {
 function updateHoverLabel(hit) {
   if (!nodeHoverLabel || !hit?.node) return
 
-  const label = hit.node.label || hit.node.name || hit.node.id || hit.nodeId
+  const label = hoverNodeLabel(hit)
   nodeHoverLabel.textContent = String(label)
 
   if (!positionHoverLabel(hit.node)) return

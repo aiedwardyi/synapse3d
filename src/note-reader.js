@@ -55,7 +55,6 @@ export function createNoteReader(element, {
     stopCloseAnimation()
     const shouldAnimate = open && canAnimateReader(element) && element.firstChild
 
-    removeBodyOpenClass(element)
     open = false
     rootNodeId = null
     currentNodeId = null
@@ -270,6 +269,7 @@ export function createNoteReader(element, {
     clearChildren(element)
     element.hidden = true
     setReaderClass()
+    removeBodyOpenClass(element)
   }
 
   function setReaderClass(stateClass = '') {

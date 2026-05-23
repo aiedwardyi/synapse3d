@@ -25,7 +25,7 @@ export function createIncidentLinkMap(links = []) {
 }
 
 export function syncIncidentLinkPositions(node, incidentLinkMap, fallbackLinks, syncLinkPosition) {
-  if (!node?.id || typeof syncLinkPosition !== 'function') return
+  if (node?.id == null || typeof syncLinkPosition !== 'function') return
 
   const links = incidentLinkMap?.get?.(node.id) || collectIncidentLinks(node.id, fallbackLinks)
   for (const link of links) {
@@ -53,8 +53,24 @@ export function updateLineGeometry(line, start, end) {
   const position = line.geometry?.getAttribute?.('position')
   if (!position || position.count < 2) return false
 
-  position.setXYZ(0, finiteGraphCoord(start.x), finiteGraphCoord(start.y), finiteGraphCoord(start.z))
-  position.setXYZ(1, finiteGraphCoord(end.x), finiteGraphCoord(end.y), finiteGraphCoord(end.z))
+  const startX = finiteGraphCoord(start.x)
+  const startY = finiteGraphCoord(start.y)
+  const startZ = finiteGraphCoord(start.z)
+  const deltaX = finiteGraphCoord(end.x) - startX
+  const deltaY = finiteGraphCoord(end.y) - startY
+  const deltaZ = finiteGraphCoord(end.z) - startZ
+  const maxIndex = position.count - 1
+
+  for (let index = 0; index < position.count; index += 1) {
+    const t = index / maxIndex
+    position.setXYZ(
+      index,
+      startX + (deltaX * t),
+      startY + (deltaY * t),
+      startZ + (deltaZ * t)
+    )
+  }
+
   position.needsUpdate = true
   line.geometry.computeBoundingSphere?.()
   return true

@@ -37,6 +37,22 @@ test('syncIncidentLinkPositions uses the incident map instead of scanning every 
   assert.deepEqual(syncedLinks, [incidentLink])
 })
 
+test('syncIncidentLinkPositions processes numeric zero node ids', () => {
+  const incidentLink = { source: 0, target: 'beta' }
+  const unrelatedLink = { source: 'gamma', target: 'delta' }
+  const syncedLinks = []
+  const map = createIncidentLinkMap([incidentLink, unrelatedLink])
+
+  syncIncidentLinkPositions(
+    { id: 0 },
+    map,
+    [unrelatedLink],
+    link => syncedLinks.push(link)
+  )
+
+  assert.deepEqual(syncedLinks, [incidentLink])
+})
+
 test('syncLinkPosition returns false when the rendered link object is missing', () => {
   const result = syncLinkPosition(
     { source: 'alpha', target: 'beta' },
@@ -78,6 +94,24 @@ test('updateLineGeometry writes start and end coordinates into a line buffer', (
 
   assert.deepEqual([...geometry.getAttribute('position').array], [1, 2, 3, 4, 5, 6])
   assert.equal(geometry.getAttribute('position').version, initialVersion + 1)
+})
+
+test('updateLineGeometry updates every vertex in multi-point line geometry', () => {
+  const geometry = new THREE.BufferGeometry()
+  geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(9), 3))
+  const line = new THREE.Line(geometry)
+
+  updateLineGeometry(
+    line,
+    { x: 0, y: 2, z: 4 },
+    { x: 10, y: 12, z: 14 }
+  )
+
+  assert.deepEqual([...geometry.getAttribute('position').array], [
+    0, 2, 4,
+    5, 7, 9,
+    10, 12, 14
+  ])
 })
 
 test('updateCylinderLink converts world endpoints into the parent local space', () => {

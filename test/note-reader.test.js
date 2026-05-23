@@ -52,12 +52,15 @@ test('close waits for the panel transition and ignores child transition events',
   reader.close()
   assert.equal(reader.isOpen(), false)
   assert.equal(element.hidden, false)
+  assert.equal(element.ownerDocument.body.classList.contains('note-reader-open'), true)
 
   panel.dispatchEvent({ type: 'transitionend', target: child })
   assert.equal(element.hidden, false)
+  assert.equal(element.ownerDocument.body.classList.contains('note-reader-open'), true)
 
   panel.dispatchEvent({ type: 'transitionend', target: panel })
   assert.equal(element.hidden, true)
+  assert.equal(element.ownerDocument.body.classList.contains('note-reader-open'), false)
 })
 
 test('next and prev cycle through linked neighbors with wraparound', async () => {

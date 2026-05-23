@@ -9,6 +9,10 @@ export function resolveHoverTarget(hit, {
   return hit
 }
 
+export function hoverNodeLabel(hit) {
+  return hit?.node?.label ?? hit?.node?.name ?? hit?.node?.id ?? hit?.nodeId
+}
+
 function hoverNodeId(hit) {
   const nodeId = hit?.nodeId ?? hit?.node?.id
   return nodeId === undefined || nodeId === null ? null : nodeId
