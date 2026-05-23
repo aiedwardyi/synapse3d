@@ -72,6 +72,7 @@ export function updateCylinderLink(line, start, end) {
     finiteGraphCoord(end.z)
   )
 
+  // Self-links use a zero-length cylinder.
   line.scale.z = linkStartVector.distanceTo(linkEndVector)
 
   if (line.parent) {
