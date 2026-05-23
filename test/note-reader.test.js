@@ -66,6 +66,29 @@ test('reader dialog wraps tab focus inside enabled controls', () => {
   assert.strictEqual(element.ownerDocument.activeElement, closeButton)
 })
 
+test('reader dialog includes content links in wrapped tab order', () => {
+  const element = createElement('div')
+  const reader = createNoteReader(element, {
+    getNode: () => ({ id: 'a', label: 'Alpha', tags: [], content: 'Body' }),
+    getNeighbors: () => []
+  })
+
+  reader.openNote('a')
+  const panel = findByClassName(element, 'note-reader-panel')
+  const content = findByClassName(element, 'note-reader-content')
+  const link = element.ownerDocument.createElement('a')
+  link.setAttribute('href', '#alpha')
+  content.appendChild(link)
+
+  const closeButton = findByClassName(element, 'note-reader-close')
+  closeButton.focus()
+  const forwardTab = createKeyEvent('Tab')
+  panel.dispatchEvent(forwardTab)
+
+  assert.equal(forwardTab.prevented, true)
+  assert.strictEqual(element.ownerDocument.activeElement, link)
+})
+
 test('close hides the reader and clears the dimmed background state', async () => {
   const element = createElement('div')
   const reader = createNoteReader(element, {
@@ -320,6 +343,7 @@ function createElementWithDocument(tagName, ownerDocument) {
     hidden: false,
     className: '',
     id: '',
+    style: {},
     textContent: '',
     innerHTML: '',
     type: '',

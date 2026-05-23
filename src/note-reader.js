@@ -8,6 +8,7 @@ const CLOSE_TRANSITION_MS = 220
 const CLOSE_TIMEOUT_BUFFER_MS = 80
 const EMPTY_CONTENT = 'No note content available.'
 const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)'
+const FOCUSABLE_TAG_NAMES = new Set(['button', 'input', 'select', 'textarea'])
 
 export function createNoteReader(element, {
   getNode,
@@ -340,15 +341,35 @@ function getFocusableReaderControls(element) {
 }
 
 function collectFocusableReaderControls(element, controls) {
-  if (!element || element.hidden) return
+  if (!element || isElementHidden(element)) return
 
-  if (element.tagName?.toLowerCase?.() === 'button' && !element.disabled) {
+  if (isFocusableReaderControl(element)) {
     controls.push(element)
   }
 
   for (const child of element.children || []) {
     collectFocusableReaderControls(child, controls)
   }
+}
+
+function isFocusableReaderControl(element) {
+  const tagName = element.tagName?.toLowerCase?.()
+  if (!tagName || element.disabled) return false
+
+  const tabIndex = element.getAttribute?.('tabindex')
+  if (tabIndex === '-1') return false
+  if (tabIndex !== undefined && tabIndex !== null) return true
+  if (tagName === 'a') return Boolean(element.getAttribute?.('href'))
+
+  return FOCUSABLE_TAG_NAMES.has(tagName)
+}
+
+function isElementHidden(element) {
+  return Boolean(
+    element.hidden ||
+    element.style?.display === 'none' ||
+    element.style?.visibility === 'hidden'
+  )
 }
 
 function getElementView(element) {
