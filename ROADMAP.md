@@ -50,6 +50,10 @@ v1.0.0 released (commit c2a8966). README with portfolio-grade structure, "What i
 
 Optional follow-ups: demo video/GIF embed in README, deploy to GitHub Pages or Vercel.
 
+A HUD and atmosphere presentation pass was added on top of v1.0.0 (commit ec66203): monospace technical-readout typography, CSS corner-bracket framing on the glass panels, accent-tuned links with low-count directional particles, and a lightweight starfield behind the graph. Presentation only; node geometry and gesture logic are unchanged.
+
+A note reader and graph navigability pass followed (commit 0df0bf4). Selecting a node can now open a readout panel that renders the note's content and pages through its linked notes. Nodes show a hover highlight and name label before selection, the force layout settles once and then holds still so dragging moves only the grabbed node, and directional link particles quiet during interaction. The reader opens through a programmatic entry point so it can later be driven by a gesture or voice command.
+
 ---
 
 ## v2 - Stretch
