@@ -41,6 +41,13 @@ test('hoverNodeLabel falls back when label text is empty', () => {
   }), 'alpha')
 })
 
+test('hoverNodeLabel ignores non-string label fields', () => {
+  assert.equal(hoverNodeLabel({
+    nodeId: 'fallback',
+    node: { id: 'alpha', label: { text: 'Alpha' }, name: true }
+  }), 'alpha')
+})
+
 function createHit(id) {
   return {
     nodeId: id,

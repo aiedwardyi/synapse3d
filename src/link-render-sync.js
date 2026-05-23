@@ -34,7 +34,7 @@ export function syncIncidentLinkPositions(node, incidentLinkMap, fallbackLinks, 
 }
 
 export function syncLinkPosition(link, getNode) {
-  // 3d-force-graph 1.80 stores rendered link objects on link.__lineObj.
+  // 3d-force-graph 1.80 stores the link drawable on link.__lineObj, or on the first child when wrapped in a Group.
   const lineObj = link?.__lineObj
   if (!lineObj) return false
 

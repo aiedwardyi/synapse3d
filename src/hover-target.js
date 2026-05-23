@@ -10,8 +10,8 @@ export function resolveHoverTarget(hit, {
 }
 
 export function hoverNodeLabel(hit) {
-  return nonEmptyValue(hit?.node?.label)
-    ?? nonEmptyValue(hit?.node?.name)
+  return nonEmptyString(hit?.node?.label)
+    ?? nonEmptyString(hit?.node?.name)
     ?? hit?.node?.id
     ?? hit?.nodeId
 }
@@ -21,7 +21,7 @@ function hoverNodeId(hit) {
   return nodeId === undefined || nodeId === null ? null : nodeId
 }
 
-function nonEmptyValue(value) {
-  if (typeof value !== 'string') return value
+function nonEmptyString(value) {
+  if (typeof value !== 'string') return null
   return value.trim() ? value : null
 }
