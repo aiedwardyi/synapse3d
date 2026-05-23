@@ -1,7 +1,13 @@
 import { renderMarkdown } from './markdown.js'
 
 const BODY_OPEN_CLASS = 'note-reader-open'
+const READER_ROOT_CLASS = 'note-reader-shell'
+const READER_VISIBLE_CLASS = 'note-reader-visible'
+const READER_CLOSING_CLASS = 'note-reader-closing'
+const CLOSE_TRANSITION_MS = 220
+const CLOSE_TIMEOUT_BUFFER_MS = 80
 const EMPTY_CONTENT = 'No note content available.'
+const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)'
 
 export function createNoteReader(element, {
   getNode,
@@ -13,8 +19,10 @@ export function createNoteReader(element, {
   let currentNodeId = null
   let linkedNodes = []
   let linkedIndex = -1
+  let cancelCloseAnimation = null
 
   async function openNote(nodeId) {
+    stopCloseAnimation()
     const node = getNode?.(nodeId)
     if (!node) {
       close()
@@ -45,14 +53,22 @@ export function createNoteReader(element, {
   }
 
   function close() {
-    clearChildren(element)
-    element.hidden = true
-    removeBodyOpenClass(element)
+    stopCloseAnimation()
+    const shouldAnimate = open && canAnimateReader(element) && element.firstChild
+
     open = false
     rootNodeId = null
     currentNodeId = null
     linkedNodes = []
     linkedIndex = -1
+
+    if (shouldAnimate) {
+      setReaderClass(READER_CLOSING_CLASS)
+      waitForCloseTransition(element.firstChild)
+      return
+    }
+
+    finishClose()
   }
 
   function openLinkedIndex(index) {
@@ -84,7 +100,7 @@ export function createNoteReader(element, {
 
   function renderNode(node) {
     clearChildren(element)
-    element.className = 'note-reader-shell'
+    setReaderClass()
     element.setAttribute?.('role', 'presentation')
 
     const panel = createChildElement(element, 'section')
@@ -100,6 +116,7 @@ export function createNoteReader(element, {
     element.appendChild(panel)
     element.hidden = false
     addBodyOpenClass(element)
+    showReaderPanel()
   }
 
   function renderHeader(node) {
@@ -178,7 +195,10 @@ export function createNoteReader(element, {
   }
 
   function formatCounter() {
-    const position = linkedIndex === -1 ? 0 : linkedIndex + 1
+    // The root note is outside the linked sequence; linked notes use 1-based positions.
+    if (linkedIndex === -1) return `SOURCE / ${linkedNodes.length} LINKED`
+
+    const position = linkedIndex + 1
     return `${position} / ${linkedNodes.length} LINKED`
   }
 
@@ -201,6 +221,61 @@ export function createNoteReader(element, {
       return rootNodeId
     }
   }
+
+  function showReaderPanel() {
+    const view = getElementView(element)
+    if (!canAnimateReader(element) || !view?.requestAnimationFrame) {
+      setReaderClass(READER_VISIBLE_CLASS)
+      return
+    }
+
+    view.requestAnimationFrame(() => {
+      if (open && !element.hidden) setReaderClass(READER_VISIBLE_CLASS)
+    })
+  }
+
+  function waitForCloseTransition(panel) {
+    let complete = false
+    const view = getElementView(element)
+    const timeoutId = view?.setTimeout?.(finish, CLOSE_TRANSITION_MS + CLOSE_TIMEOUT_BUFFER_MS)
+
+    function finish(event) {
+      if (event && event.target !== panel) return
+      if (complete) return
+
+      complete = true
+      panel.removeEventListener?.('transitionend', finish)
+      if (timeoutId !== undefined) view?.clearTimeout?.(timeoutId)
+      cancelCloseAnimation = null
+      finishClose()
+    }
+
+    cancelCloseAnimation = () => {
+      if (complete) return
+
+      complete = true
+      panel.removeEventListener?.('transitionend', finish)
+      if (timeoutId !== undefined) view?.clearTimeout?.(timeoutId)
+      cancelCloseAnimation = null
+    }
+
+    panel.addEventListener?.('transitionend', finish)
+  }
+
+  function stopCloseAnimation() {
+    cancelCloseAnimation?.()
+  }
+
+  function finishClose() {
+    clearChildren(element)
+    element.hidden = true
+    setReaderClass()
+    removeBodyOpenClass(element)
+  }
+
+  function setReaderClass(stateClass = '') {
+    element.className = stateClass ? `${READER_ROOT_CLASS} ${stateClass}` : READER_ROOT_CLASS
+  }
 }
 
 function wrapIndex(index, length) {
@@ -213,6 +288,17 @@ function addBodyOpenClass(element) {
 
 function removeBodyOpenClass(element) {
   element.ownerDocument?.body?.classList?.remove(BODY_OPEN_CLASS)
+}
+
+function canAnimateReader(element) {
+  const view = getElementView(element)
+  if (!view?.matchMedia) return false
+
+  return !view.matchMedia(REDUCED_MOTION_QUERY).matches
+}
+
+function getElementView(element) {
+  return element.ownerDocument?.defaultView || globalThis
 }
 
 function clearChildren(element) {

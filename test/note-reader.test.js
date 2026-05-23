@@ -38,6 +38,51 @@ test('close hides the reader and clears the dimmed background state', async () =
   assert.equal(element.ownerDocument.body.classList.contains('note-reader-open'), false)
 })
 
+test('close waits for the panel transition and ignores child transition events', async () => {
+  const element = createElement('div', { animateReader: true })
+  const reader = createNoteReader(element, {
+    getNode: () => ({ id: 'a', label: 'Alpha', tags: [], content: 'Body' }),
+    getNeighbors: () => []
+  })
+
+  await reader.openNote('a')
+  const panel = findByClassName(element, 'note-reader-panel')
+  const child = panel.children[0]
+
+  reader.close()
+  assert.equal(reader.isOpen(), false)
+  assert.equal(element.hidden, false)
+  assert.equal(element.ownerDocument.body.classList.contains('note-reader-open'), true)
+
+  panel.dispatchEvent({ type: 'transitionend', target: child })
+  assert.equal(element.hidden, false)
+  assert.equal(element.ownerDocument.body.classList.contains('note-reader-open'), true)
+
+  panel.dispatchEvent({ type: 'transitionend', target: panel })
+  assert.equal(element.hidden, true)
+  assert.equal(element.ownerDocument.body.classList.contains('note-reader-open'), false)
+})
+
+test('close finishes from the timeout fallback when transitionend is missing', async () => {
+  const timeoutCallbacks = []
+  const element = createElement('div', { animateReader: true, timeoutCallbacks })
+  const reader = createNoteReader(element, {
+    getNode: () => ({ id: 'a', label: 'Alpha', tags: [], content: 'Body' }),
+    getNeighbors: () => []
+  })
+
+  await reader.openNote('a')
+  reader.close()
+  assert.equal(element.hidden, false)
+  assert.equal(element.ownerDocument.body.classList.contains('note-reader-open'), true)
+
+  assert.equal(timeoutCallbacks.length, 1)
+  timeoutCallbacks[0]()
+
+  assert.equal(element.hidden, true)
+  assert.equal(element.ownerDocument.body.classList.contains('note-reader-open'), false)
+})
+
 test('next and prev cycle through linked neighbors with wraparound', async () => {
   const element = createElement('div')
   const nodes = new Map([
@@ -51,6 +96,8 @@ test('next and prev cycle through linked neighbors with wraparound', async () =>
   })
 
   await reader.openNote('a')
+  assert.equal(findByClassName(element, 'note-reader-counter').textContent, 'SOURCE / 2 LINKED')
+
   await reader.next()
   assert.equal(findByClassName(element, 'note-reader-title').textContent, 'Beta')
   assert.equal(findByClassName(element, 'note-reader-counter').textContent, '1 / 2 LINKED')
@@ -97,7 +144,7 @@ test('zero linked neighbors leaves the current note in place', async () => {
   await reader.openNote('a')
   await reader.next()
   assert.equal(findByClassName(element, 'note-reader-title').textContent, 'Alpha')
-  assert.equal(findByClassName(element, 'note-reader-counter').textContent, '0 / 0 LINKED')
+  assert.equal(findByClassName(element, 'note-reader-counter').textContent, 'SOURCE / 0 LINKED')
 
   await reader.prev()
   assert.equal(findByClassName(element, 'note-reader-title').textContent, 'Alpha')
@@ -147,10 +194,11 @@ function findByClassName(element, className) {
   return null
 }
 
-function createElement(tagName) {
+function createElement(tagName, options = {}) {
   const ownerDocument = {
     activeElement: null,
     body: createBody(),
+    defaultView: createDefaultView(options),
     createElement(childTagName) {
       return createElementWithDocument(childTagName, ownerDocument)
     }
@@ -172,6 +220,23 @@ function createBody() {
       contains(className) {
         return classes.has(className)
       }
+    }
+  }
+}
+
+function createDefaultView({ animateReader = false, timeoutCallbacks = null } = {}) {
+  return {
+    clearTimeout() {},
+    matchMedia() {
+      return { matches: !animateReader }
+    },
+    requestAnimationFrame(callback) {
+      callback()
+      return 1
+    },
+    setTimeout(callback) {
+      timeoutCallbacks?.push(callback)
+      return 1
     }
   }
 }
@@ -206,10 +271,21 @@ function createElementWithDocument(tagName, ownerDocument) {
       return child
     },
     addEventListener(type, listener) {
-      listeners.set(type, listener)
+      const typedListeners = listeners.get(type) || []
+      typedListeners.push(listener)
+      listeners.set(type, typedListeners)
+    },
+    removeEventListener(type, listener) {
+      const typedListeners = listeners.get(type) || []
+      listeners.set(type, typedListeners.filter(current => current !== listener))
     },
     click() {
-      listeners.get('click')?.()
+      const clickListeners = listeners.get('click') || []
+      for (const listener of clickListeners) listener()
+    },
+    dispatchEvent(event) {
+      const eventListeners = listeners.get(event.type) || []
+      for (const listener of [...eventListeners]) listener(event)
     },
     focus() {
       this.focusCount += 1

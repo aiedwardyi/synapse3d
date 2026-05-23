@@ -100,6 +100,21 @@ test('updateDrag at viewport center pins the node at its starting depth', () => 
   assert.ok(Math.abs(node.fz - (-10)) < epsilon, `fz=${node.fz} should be ~-10`)
 })
 
+test('updateDrag writes render coordinates alongside fixed coordinates', () => {
+  const drag = createDragController()
+  const camera = createCamera()
+  const raycaster = new THREE.Raycaster()
+  const node = { id: 'n1' }
+  const hit = createHit(node, new THREE.Vector3(0, 0, -10))
+
+  drag.beginDrag(hit, camera)
+  drag.updateDrag({ x: 0.75, y: 0.5 }, camera, raycaster)
+
+  assert.equal(node.x, node.fx)
+  assert.equal(node.y, node.fy)
+  assert.equal(node.z, node.fz)
+})
+
 test('updateDrag right of center moves node positive x but holds depth', () => {
   const drag = createDragController()
   const camera = createCamera()

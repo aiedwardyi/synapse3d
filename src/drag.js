@@ -24,6 +24,9 @@ export function createDragController() {
     const hitPoint = raycaster.ray.intersectPlane(dragPlane, intersectionTarget)
     if (!hitPoint) return
 
+    targetNode.x = hitPoint.x
+    targetNode.y = hitPoint.y
+    targetNode.z = hitPoint.z
     targetNode.fx = hitPoint.x
     targetNode.fy = hitPoint.y
     targetNode.fz = hitPoint.z
