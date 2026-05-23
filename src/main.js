@@ -18,6 +18,7 @@ import { createNodeMesh, setNodeMeshScale, updateNodeMesh } from './node-mesh.js
 import { createNodeSelectionHit } from './node-selection-hit.js'
 import { createPinchSelectionAttempt } from './pinch-selection-attempt.js'
 import { createSelectionPanel } from './selection-panel.js'
+import { createNoteReader } from './note-reader.js'
 import { createStarfield } from './starfield.js'
 import { createGestureHud } from './gesture-hud.js'
 import { createGestureLegend } from './gesture-legend.js'
@@ -90,9 +91,11 @@ function nodeColor(node) {
 
 let graph = null
 let selectionPanel = null
+let noteReader = null
 let gestureHud = null
 let gestureLegend = null
 let currentSelection = null
+let currentGraphData = { nodes: [], links: [] }
 let trackingButton = null
 let handTrackingStarted = false
 const raycaster = new THREE.Raycaster()
@@ -103,6 +106,8 @@ const nodeMaterials = createMaterialTracker()
 const nodeMeshes = new Map()
 
 function render(data) {
+  currentGraphData = data
+  noteReader?.close()
   if (!graph) {
     graph = ForceGraph3D()(document.getElementById('graph'))
       .backgroundColor('rgba(0,0,0,0)')
@@ -223,6 +228,43 @@ function clearSelection() {
   }
 
   selectionPanel?.hide()
+}
+
+function getGraphNode(nodeId) {
+  const nodes = currentGraphData.nodes || []
+  return nodes.find(node => node.id === nodeId) || null
+}
+
+function getGraphNeighbors(nodeId) {
+  const nodes = currentGraphData.nodes || []
+  const links = currentGraphData.links || []
+  const nodesById = new Map(nodes.map(node => [node.id, node]))
+  const seen = new Set()
+  const neighbors = []
+
+  for (const link of links) {
+    const sourceId = linkEndpointId(link.source)
+    const targetId = linkEndpointId(link.target)
+    let neighborId = null
+
+    if (sourceId === nodeId) neighborId = targetId
+    else if (targetId === nodeId) neighborId = sourceId
+
+    if (!neighborId || neighborId === nodeId || seen.has(neighborId)) continue
+
+    const neighbor = nodesById.get(neighborId)
+    if (!neighbor) continue
+
+    seen.add(neighborId)
+    neighbors.push(neighbor)
+  }
+
+  return neighbors
+}
+
+function linkEndpointId(endpoint) {
+  if (endpoint && typeof endpoint === 'object') return endpoint.id
+  return endpoint
 }
 
 async function loadAndRender(handle) {
@@ -521,6 +563,32 @@ function syncOverlayCanvasSize(canvas) {
   canvas.height = window.innerHeight
 }
 
+function createNoteReaderElement(documentRef) {
+  const element = documentRef.createElement('div')
+  element.id = 'note-reader'
+  element.hidden = true
+  documentRef.body.appendChild(element)
+  return element
+}
+
+function initEscapeHandling(gestureLegendElement) {
+  window.addEventListener('keydown', event => {
+    if (event.key !== 'Escape') return
+
+    if (noteReader?.isOpen()) {
+      noteReader.close()
+      event.preventDefault()
+      return
+    }
+
+    if (gestureLegendElement && !gestureLegendElement.hidden) {
+      gestureLegend?.hide()
+      markLegendSeen()
+      event.preventDefault()
+    }
+  })
+}
+
 async function init() {
   const pickButton = document.getElementById('pick-vault')
   const changeButton = document.getElementById('change-vault')
@@ -530,7 +598,15 @@ async function init() {
   const selectionPanelElement = document.getElementById('selection-panel')
   const gestureHudElement = document.getElementById('gesture-hud')
   const gestureLegendElement = document.getElementById('gesture-legend')
-  selectionPanel = createSelectionPanel(selectionPanelElement)
+  noteReader = createNoteReader(createNoteReaderElement(document), {
+    getNode: getGraphNode,
+    getNeighbors: getGraphNeighbors
+  })
+  selectionPanel = createSelectionPanel(selectionPanelElement, {
+    onOpenNote(nodeId) {
+      noteReader?.openNote(nodeId)
+    }
+  })
   gestureHud = createGestureHud(gestureHudElement)
   gestureLegend = createGestureLegend(gestureLegendElement, {
     onDismiss() {
@@ -539,6 +615,7 @@ async function init() {
     }
   })
   gestureHud.update('idle')
+  initEscapeHandling(gestureLegendElement)
 
   syncOverlayCanvasSize(handCanvas)
   window.addEventListener('resize', () => syncOverlayCanvasSize(handCanvas))

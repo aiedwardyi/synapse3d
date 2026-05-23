@@ -67,7 +67,7 @@ export async function parseVault(rootHandle) {
     const label = stripMarkdownExtension(file.name)
     const tags = extractTags(file.text)
 
-    nodes.push({ id, label, tags, missing: false })
+    nodes.push({ id, label, tags, content: file.text, missing: false })
     addNoteToIndex(noteIndex, id, label)
 
     for (const target of extractWikilinks(file.text)) {
