@@ -63,6 +63,26 @@ test('close waits for the panel transition and ignores child transition events',
   assert.equal(element.ownerDocument.body.classList.contains('note-reader-open'), false)
 })
 
+test('close finishes from the timeout fallback when transitionend is missing', async () => {
+  const timeoutCallbacks = []
+  const element = createElement('div', { animateReader: true, timeoutCallbacks })
+  const reader = createNoteReader(element, {
+    getNode: () => ({ id: 'a', label: 'Alpha', tags: [], content: 'Body' }),
+    getNeighbors: () => []
+  })
+
+  await reader.openNote('a')
+  reader.close()
+  assert.equal(element.hidden, false)
+  assert.equal(element.ownerDocument.body.classList.contains('note-reader-open'), true)
+
+  assert.equal(timeoutCallbacks.length, 1)
+  timeoutCallbacks[0]()
+
+  assert.equal(element.hidden, true)
+  assert.equal(element.ownerDocument.body.classList.contains('note-reader-open'), false)
+})
+
 test('next and prev cycle through linked neighbors with wraparound', async () => {
   const element = createElement('div')
   const nodes = new Map([
@@ -204,7 +224,7 @@ function createBody() {
   }
 }
 
-function createDefaultView({ animateReader = false } = {}) {
+function createDefaultView({ animateReader = false, timeoutCallbacks = null } = {}) {
   return {
     clearTimeout() {},
     matchMedia() {
@@ -214,7 +234,8 @@ function createDefaultView({ animateReader = false } = {}) {
       callback()
       return 1
     },
-    setTimeout() {
+    setTimeout(callback) {
+      timeoutCallbacks?.push(callback)
       return 1
     }
   }

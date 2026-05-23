@@ -5,6 +5,7 @@ const READER_ROOT_CLASS = 'note-reader-shell'
 const READER_VISIBLE_CLASS = 'note-reader-visible'
 const READER_CLOSING_CLASS = 'note-reader-closing'
 const CLOSE_TRANSITION_MS = 220
+const CLOSE_TIMEOUT_BUFFER_MS = 80
 const EMPTY_CONTENT = 'No note content available.'
 const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)'
 
@@ -236,7 +237,7 @@ export function createNoteReader(element, {
   function waitForCloseTransition(panel) {
     let complete = false
     const view = getElementView(element)
-    const timeoutId = view?.setTimeout?.(finish, CLOSE_TRANSITION_MS + 80)
+    const timeoutId = view?.setTimeout?.(finish, CLOSE_TRANSITION_MS + CLOSE_TIMEOUT_BUFFER_MS)
 
     function finish(event) {
       if (event && event.target !== panel) return
