@@ -239,7 +239,8 @@ export function createNoteReader(element, {
     const view = getElementView(element)
     const timeoutId = view?.setTimeout?.(finish, CLOSE_TRANSITION_MS + 80)
 
-    function finish() {
+    function finish(event) {
+      if (event && event.target !== panel) return
       if (complete) return
 
       complete = true
@@ -258,7 +259,7 @@ export function createNoteReader(element, {
       cancelCloseAnimation = null
     }
 
-    panel.addEventListener?.('transitionend', finish, { once: true })
+    panel.addEventListener?.('transitionend', finish)
   }
 
   function stopCloseAnimation() {

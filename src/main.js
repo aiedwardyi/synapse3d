@@ -25,6 +25,12 @@ import { createGestureLegend } from './gesture-legend.js'
 import { hasSeenLegend, markLegendSeen } from './gesture-legend-storage.js'
 import { linkDirectionalParticlesForGestureState } from './gesture-particles.js'
 import { resolveHoverTarget } from './hover-target.js'
+import {
+  createIncidentLinkMap,
+  linkEndpointId,
+  syncIncidentLinkPositions as syncIncidentLinkRenderPositions,
+  syncLinkPosition
+} from './link-render-sync.js'
 import './style.css'
 
 const HAND_MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task'
@@ -103,6 +109,7 @@ let gestureLegend = null
 let currentSelection = null
 let currentHover = null
 let currentGraphData = { nodes: [], links: [] }
+let incidentLinkMap = new Map()
 let trackingButton = null
 let nodeHoverLabel = null
 let handTrackingStarted = false
@@ -113,12 +120,10 @@ const orbit = createOrbitController()
 const zoom = createZoomController()
 const nodeMaterials = createMaterialTracker()
 const nodeMeshes = new Map()
-const linkStartVector = new THREE.Vector3()
-const linkEndVector = new THREE.Vector3()
-const linkLookAtVector = new THREE.Vector3()
 
 function render(data) {
   currentGraphData = data
+  incidentLinkMap = createIncidentLinkMap(data.links || [])
   noteReader?.close()
   if (!graph) {
     graph = ForceGraph3D()(document.getElementById('graph'))
@@ -386,11 +391,6 @@ function getGraphNeighbors(nodeId) {
   return neighbors
 }
 
-function linkEndpointId(endpoint) {
-  if (endpoint && typeof endpoint === 'object') return endpoint.id
-  return endpoint
-}
-
 function updateGestureState(gestureState) {
   gestureHud?.update(gestureState)
   updateLinkParticlesForGestureState(gestureState)
@@ -411,7 +411,12 @@ function syncDraggedNodeRender(node) {
   if (!node) return
 
   syncNodeMeshPosition(node)
-  syncIncidentLinkPositions(node)
+  syncIncidentLinkRenderPositions(
+    node,
+    incidentLinkMap,
+    currentGraphData.links || [],
+    link => syncLinkPosition(link, getGraphNode)
+  )
 }
 
 function syncNodeMeshPosition(node) {
@@ -423,71 +428,6 @@ function syncNodeMeshPosition(node) {
     finiteGraphCoord(node.y),
     finiteGraphCoord(node.z)
   )
-}
-
-function syncIncidentLinkPositions(node) {
-  const links = currentGraphData.links || []
-
-  for (const link of links) {
-    const sourceId = linkEndpointId(link.source)
-    const targetId = linkEndpointId(link.target)
-    if (sourceId !== node.id && targetId !== node.id) continue
-
-    syncLinkPosition(link)
-  }
-}
-
-function syncLinkPosition(link) {
-  const lineObj = link.__lineObj
-  if (!lineObj) return
-
-  const start = linkEndpointPosition(link.source)
-  const end = linkEndpointPosition(link.target)
-  if (!start || !end) return
-
-  const line = lineObj.children?.length ? lineObj.children[0] : lineObj
-  if (line?.type === 'Line') {
-    updateLineGeometry(line, start, end)
-  } else if (line?.type === 'Mesh') {
-    updateCylinderLink(line, start, end)
-  }
-}
-
-function linkEndpointPosition(endpoint) {
-  const node = endpoint && typeof endpoint === 'object' ? endpoint : getGraphNode(endpoint)
-  if (!node) return null
-
-  return {
-    x: finiteGraphCoord(node.x),
-    y: finiteGraphCoord(node.y),
-    z: finiteGraphCoord(node.z)
-  }
-}
-
-function updateLineGeometry(line, start, end) {
-  const position = line.geometry?.getAttribute?.('position')
-  if (!position || position.count < 2) return
-
-  position.setXYZ(0, start.x, start.y, start.z)
-  position.setXYZ(1, end.x, end.y, end.z)
-  position.needsUpdate = true
-  line.geometry.computeBoundingSphere?.()
-}
-
-function updateCylinderLink(line, start, end) {
-  linkStartVector.set(start.x, start.y, start.z)
-  linkEndVector.set(end.x, end.y, end.z)
-
-  line.position.copy(linkStartVector)
-  line.scale.z = linkStartVector.distanceTo(linkEndVector)
-
-  if (line.parent) {
-    linkLookAtVector.copy(linkEndVector)
-    line.parent.localToWorld(linkLookAtVector)
-    line.lookAt(linkLookAtVector)
-  } else {
-    line.lookAt(linkEndVector)
-  }
 }
 
 function finiteGraphCoord(value) {
