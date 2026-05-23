@@ -79,9 +79,7 @@ export function updateCylinderLink(line, start, end) {
     line.parent.worldToLocal(localStartVector)
     line.position.copy(localStartVector)
 
-    linkLookAtVector.copy(linkEndVector)
-    line.parent.localToWorld(linkLookAtVector)
-    line.lookAt(linkLookAtVector)
+    line.lookAt(linkLookAtVector.copy(linkEndVector))
   } else {
     line.position.copy(linkStartVector)
     line.lookAt(linkEndVector)

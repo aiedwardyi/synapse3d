@@ -70,3 +70,33 @@ test('updateCylinderLink converts world endpoints into the parent local space', 
   assert.equal(line.position.z, 0)
   assert.equal(line.scale.z, 5)
 })
+
+test('updateCylinderLink points cylinders at the world-space end coordinate', () => {
+  let lookAtTarget = null
+  const line = {
+    position: new THREE.Vector3(),
+    scale: { z: 0 },
+    parent: {
+      localToWorld(vector) {
+        vector.x += 10
+        return vector
+      },
+      worldToLocal(vector) {
+        vector.x -= 10
+        return vector
+      }
+    },
+    lookAt(target) {
+      lookAtTarget = target.clone()
+    }
+  }
+
+  updateCylinderLink(
+    line,
+    { x: 12, y: 0, z: 0 },
+    { x: 12, y: 0, z: 5 }
+  )
+
+  assert.equal(line.position.x, 2)
+  assert.deepEqual(lookAtTarget, new THREE.Vector3(12, 0, 5))
+})
