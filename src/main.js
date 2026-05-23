@@ -424,7 +424,7 @@ function getGraphNeighbors(nodeId) {
     if (sourceId === nodeId) neighborId = targetId
     else if (targetId === nodeId) neighborId = sourceId
 
-    if (!neighborId || neighborId === nodeId || seen.has(neighborId)) continue
+    if (neighborId == null || neighborId === nodeId || seen.has(neighborId)) continue
 
     const neighbor = nodesById.get(neighborId)
     if (!neighbor) continue
