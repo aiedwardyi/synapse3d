@@ -135,10 +135,14 @@ test('updateCylinderLink converts world endpoints into the parent local space', 
 
 test('updateCylinderLink points cylinders at the world-space end coordinate', () => {
   let lookAtTarget = null
+  let updateMatrixWorldForce = null
   const line = {
     position: new THREE.Vector3(),
     scale: { z: 0 },
     parent: {
+      updateMatrixWorld(force) {
+        updateMatrixWorldForce = force
+      },
       localToWorld(vector) {
         vector.x += 10
         return vector
@@ -160,6 +164,7 @@ test('updateCylinderLink points cylinders at the world-space end coordinate', ()
   )
 
   assert.equal(line.position.x, 2)
+  assert.equal(updateMatrixWorldForce, true)
   assert.deepEqual(lookAtTarget, new THREE.Vector3(12, 0, 5))
 })
 

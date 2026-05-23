@@ -23,6 +23,49 @@ test('openNote renders a known note and marks the reader open', async () => {
   assert.equal(element.ownerDocument.body.classList.contains('note-reader-open'), true)
 })
 
+test('openNote returns synchronously and focuses the first enabled control', () => {
+  const element = createElement('div')
+  const reader = createNoteReader(element, {
+    getNode: () => ({ id: 'a', label: 'Alpha', tags: [], content: 'Body' }),
+    getNeighbors: () => []
+  })
+
+  const opened = reader.openNote('a')
+  const closeButton = findByClassName(element, 'note-reader-close')
+
+  assert.equal(opened, true)
+  assert.equal(closeButton.focusCount, 1)
+  assert.strictEqual(element.ownerDocument.activeElement, closeButton)
+})
+
+test('reader dialog wraps tab focus inside enabled controls', () => {
+  const element = createElement('div')
+  const nodes = new Map([
+    ['a', { id: 'a', label: 'Alpha', tags: [], content: 'Root' }],
+    ['b', { id: 'b', label: 'Beta', tags: [], content: 'Linked' }]
+  ])
+  const reader = createNoteReader(element, {
+    getNode: id => nodes.get(id) || null,
+    getNeighbors: id => id === 'a' ? [nodes.get('b')] : []
+  })
+
+  reader.openNote('a')
+  const panel = findByClassName(element, 'note-reader-panel')
+  const [prevButton, , closeButton] = findButtons(panel)
+  assert.strictEqual(element.ownerDocument.activeElement, prevButton)
+
+  closeButton.focus()
+  const forwardTab = createKeyEvent('Tab')
+  panel.dispatchEvent(forwardTab)
+  assert.equal(forwardTab.prevented, true)
+  assert.strictEqual(element.ownerDocument.activeElement, prevButton)
+
+  const backwardTab = createKeyEvent('Tab', { shiftKey: true })
+  panel.dispatchEvent(backwardTab)
+  assert.equal(backwardTab.prevented, true)
+  assert.strictEqual(element.ownerDocument.activeElement, closeButton)
+})
+
 test('close hides the reader and clears the dimmed background state', async () => {
   const element = createElement('div')
   const reader = createNoteReader(element, {
@@ -192,6 +235,32 @@ function findByClassName(element, className) {
   }
 
   return null
+}
+
+function findButtons(element) {
+  const buttons = []
+  collectButtons(element, buttons)
+  return buttons
+}
+
+function collectButtons(element, buttons) {
+  if (element.tagName === 'button') buttons.push(element)
+
+  for (const child of element.children || []) {
+    collectButtons(child, buttons)
+  }
+}
+
+function createKeyEvent(key, { shiftKey = false } = {}) {
+  return {
+    type: 'keydown',
+    key,
+    shiftKey,
+    prevented: false,
+    preventDefault() {
+      this.prevented = true
+    }
+  }
 }
 
 function createElement(tagName, options = {}) {

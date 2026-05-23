@@ -93,6 +93,7 @@ export function updateCylinderLink(line, start, end) {
   line.scale.z = linkLength
 
   if (line.parent) {
+    line.parent.updateMatrixWorld?.(true)
     localStartVector.copy(linkStartVector)
     line.parent.worldToLocal(localStartVector)
     line.position.copy(localStartVector)

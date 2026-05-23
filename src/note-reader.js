@@ -21,7 +21,7 @@ export function createNoteReader(element, {
   let linkedIndex = -1
   let cancelCloseAnimation = null
 
-  async function openNote(nodeId) {
+  function openNote(nodeId) {
     stopCloseAnimation()
     const node = getNode?.(nodeId)
     if (!node) {
@@ -38,14 +38,14 @@ export function createNoteReader(element, {
     return true
   }
 
-  async function next() {
+  function next() {
     if (!open || linkedNodes.length === 0) return false
 
     const index = linkedIndex === -1 ? 0 : linkedIndex + 1
     return openLinkedIndex(index)
   }
 
-  async function prev() {
+  function prev() {
     if (!open || linkedNodes.length === 0) return false
 
     const index = linkedIndex === -1 ? linkedNodes.length - 1 : linkedIndex - 1
@@ -108,6 +108,9 @@ export function createNoteReader(element, {
     panel.setAttribute?.('role', 'dialog')
     panel.setAttribute?.('aria-modal', 'true')
     panel.setAttribute?.('aria-labelledby', 'note-reader-title')
+    panel.addEventListener?.('keydown', event => {
+      trapReaderFocus(panel, event)
+    })
 
     panel.appendChild(renderHeader(node))
     panel.appendChild(renderContentBlock(node))
@@ -116,6 +119,7 @@ export function createNoteReader(element, {
     element.appendChild(panel)
     element.hidden = false
     addBodyOpenClass(element)
+    focusFirstReaderControl(panel)
     showReaderPanel()
   }
 
@@ -295,6 +299,56 @@ function canAnimateReader(element) {
   if (!view?.matchMedia) return false
 
   return !view.matchMedia(REDUCED_MOTION_QUERY).matches
+}
+
+function focusFirstReaderControl(panel) {
+  getFocusableReaderControls(panel)[0]?.focus?.()
+}
+
+function trapReaderFocus(panel, event) {
+  if (event?.key !== 'Tab') return
+
+  const controls = getFocusableReaderControls(panel)
+  if (controls.length === 0) return
+
+  const activeElement = panel.ownerDocument?.activeElement
+  const firstControl = controls[0]
+  const lastControl = controls[controls.length - 1]
+
+  if (!controls.includes(activeElement)) {
+    event.preventDefault?.()
+    firstControl.focus?.()
+    return
+  }
+
+  if (event.shiftKey && activeElement === firstControl) {
+    event.preventDefault?.()
+    lastControl.focus?.()
+    return
+  }
+
+  if (!event.shiftKey && activeElement === lastControl) {
+    event.preventDefault?.()
+    firstControl.focus?.()
+  }
+}
+
+function getFocusableReaderControls(element) {
+  const controls = []
+  collectFocusableReaderControls(element, controls)
+  return controls
+}
+
+function collectFocusableReaderControls(element, controls) {
+  if (!element || element.hidden) return
+
+  if (element.tagName?.toLowerCase?.() === 'button' && !element.disabled) {
+    controls.push(element)
+  }
+
+  for (const child of element.children || []) {
+    collectFocusableReaderControls(child, controls)
+  }
 }
 
 function getElementView(element) {
