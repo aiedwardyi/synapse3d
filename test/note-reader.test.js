@@ -51,6 +51,8 @@ test('next and prev cycle through linked neighbors with wraparound', async () =>
   })
 
   await reader.openNote('a')
+  assert.equal(findByClassName(element, 'note-reader-counter').textContent, 'SOURCE / 2 LINKED')
+
   await reader.next()
   assert.equal(findByClassName(element, 'note-reader-title').textContent, 'Beta')
   assert.equal(findByClassName(element, 'note-reader-counter').textContent, '1 / 2 LINKED')
@@ -97,7 +99,7 @@ test('zero linked neighbors leaves the current note in place', async () => {
   await reader.openNote('a')
   await reader.next()
   assert.equal(findByClassName(element, 'note-reader-title').textContent, 'Alpha')
-  assert.equal(findByClassName(element, 'note-reader-counter').textContent, '0 / 0 LINKED')
+  assert.equal(findByClassName(element, 'note-reader-counter').textContent, 'SOURCE / 0 LINKED')
 
   await reader.prev()
   assert.equal(findByClassName(element, 'note-reader-title').textContent, 'Alpha')

@@ -101,6 +101,7 @@ html, body {
 #enable-tracking,
 #selection-panel,
 #note-reader,
+#node-hover-label,
 #gesture-hud,
 .gesture-legend-dialog {
   font-family: var(--readout-font);
@@ -117,6 +118,7 @@ html, body {
 #note-reader .note-reader-counter,
 #note-reader .note-reader-action,
 #note-reader .note-reader-close,
+#node-hover-label,
 .gesture-hud-label,
 .gesture-legend-dialog h2,
 .gesture-legend-label,
@@ -129,6 +131,8 @@ html, body {
 #selection-panel::after,
 #note-reader .note-reader-panel::before,
 #note-reader .note-reader-panel::after,
+#node-hover-label::before,
+#node-hover-label::after,
 #gesture-hud::before,
 #gesture-hud::after,
 .gesture-legend-dialog::before,
@@ -142,6 +146,7 @@ html, body {
 
 #selection-panel::before,
 #note-reader .note-reader-panel::before,
+#node-hover-label::before,
 #gesture-hud::before,
 .gesture-legend-dialog::before {
   background:
@@ -153,6 +158,7 @@ html, body {
 
 #selection-panel::after,
 #note-reader .note-reader-panel::after,
+#node-hover-label::after,
 #gesture-hud::after,
 .gesture-legend-dialog::after {
   background:
@@ -239,8 +245,29 @@ html, body {
 
 #gesture-hud[hidden],
 #gesture-legend[hidden],
-#note-reader[hidden] {
+#note-reader[hidden],
+#node-hover-label[hidden] {
   display: none;
+}
+
+#node-hover-label {
+  position: fixed;
+  max-width: min(260px, calc(100vw - 32px));
+  padding: 7px 10px;
+  transform: translate(-50%, calc(-100% - 12px));
+  overflow: hidden;
+  background: rgba(15, 20, 35, 0.82);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(74, 144, 226, 0.62);
+  border-radius: 6px;
+  color: #dbe8ff;
+  font-size: 11px;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 24;
+  box-shadow: 0 0 18px rgba(74, 144, 226, 0.22);
 }
 
 body.note-reader-open #graph,
@@ -273,7 +300,25 @@ body.note-reader-open #gesture-hud {
   border: 1px solid rgba(74, 144, 226, 0.68);
   border-radius: 8px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45), 0 0 28px rgba(74, 144, 226, 0.22);
+  opacity: 0;
   overflow: hidden;
+  transform: translateY(18px);
+  transition: opacity 0.22s ease, transform 0.22s ease;
+}
+
+#note-reader.note-reader-visible .note-reader-panel {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+#note-reader.note-reader-closing .note-reader-panel {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(18px);
+}
+
+#note-reader.note-reader-closing {
+  pointer-events: none;
 }
 
 .note-reader-header {
@@ -441,6 +486,19 @@ body.note-reader-open #gesture-hud {
 .note-reader-action:disabled:hover {
   background: rgba(74, 144, 226, 0.16);
   border-color: rgba(74, 144, 226, 0.58);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .note-reader-panel {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+
+  #note-reader.note-reader-closing .note-reader-panel {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 @media (max-width: 640px) {

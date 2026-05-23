@@ -23,6 +23,8 @@ import { createStarfield } from './starfield.js'
 import { createGestureHud } from './gesture-hud.js'
 import { createGestureLegend } from './gesture-legend.js'
 import { hasSeenLegend, markLegendSeen } from './gesture-legend-storage.js'
+import { linkDirectionalParticlesForGestureState } from './gesture-particles.js'
+import { resolveHoverTarget } from './hover-target.js'
 import './style.css'
 
 const HAND_MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task'
@@ -42,6 +44,8 @@ const DEFAULT_COLOR = '#cfd8e8'
 const MISSING_COLOR = '#4a3030'
 const HIGHLIGHT_COLOR = 0xffffff
 const HIGHLIGHT_EMISSIVE_INTENSITY = 1.5
+const HOVER_EMISSIVE_INTENSITY = 0.35
+const HOVER_SCALE = 1.16
 const BLOOM_STRENGTH = 0.8
 const BLOOM_RADIUS = 0.4
 const BLOOM_THRESHOLD = 0.85
@@ -50,6 +54,8 @@ const LINK_OPACITY = 0.42
 const LINK_DIRECTIONAL_PARTICLES = 1
 const LINK_DIRECTIONAL_PARTICLE_SPEED = 0.003
 const LINK_DIRECTIONAL_PARTICLE_WIDTH = 0.8
+const LAYOUT_SETTLE_TICKS = 240
+const LAYOUT_SETTLE_TIME_MS = 8000
 const FINGERTIP_FILTER_OPTIONS = {
   minCutoff: 1.0,
   beta: 0.05,
@@ -95,15 +101,21 @@ let noteReader = null
 let gestureHud = null
 let gestureLegend = null
 let currentSelection = null
+let currentHover = null
 let currentGraphData = { nodes: [], links: [] }
 let trackingButton = null
+let nodeHoverLabel = null
 let handTrackingStarted = false
+let currentLinkDirectionalParticles = LINK_DIRECTIONAL_PARTICLES
 const raycaster = new THREE.Raycaster()
 const drag = createDragController()
 const orbit = createOrbitController()
 const zoom = createZoomController()
 const nodeMaterials = createMaterialTracker()
 const nodeMeshes = new Map()
+const linkStartVector = new THREE.Vector3()
+const linkEndVector = new THREE.Vector3()
+const linkLookAtVector = new THREE.Vector3()
 
 function render(data) {
   currentGraphData = data
@@ -111,9 +123,13 @@ function render(data) {
   if (!graph) {
     graph = ForceGraph3D()(document.getElementById('graph'))
       .backgroundColor('rgba(0,0,0,0)')
+      .cooldownTicks(LAYOUT_SETTLE_TICKS)
+      .cooldownTime(LAYOUT_SETTLE_TIME_MS)
+      .enableNodeDrag(false)
       .nodeLabel('label')
       .nodeThreeObject(makeNodeMesh)
       .onNodeClick(selectGraphNode)
+      .onEngineStop(freezeGraphLayout)
       .linkColor(() => LINK_COLOR)
       .linkOpacity(LINK_OPACITY)
       .linkDirectionalParticles(LINK_DIRECTIONAL_PARTICLES)
@@ -122,9 +138,23 @@ function render(data) {
     attachStarfield(graph)
     attachSelectionBloom(graph)
   }
+  prepareGraphLayoutSettle()
+  clearHoverTarget()
   clearSelection()
+  currentLinkDirectionalParticles = LINK_DIRECTIONAL_PARTICLES
+  graph.linkDirectionalParticles(currentLinkDirectionalParticles)
   graph.graphData(data)
   syncNodeMeshes(data.nodes || [])
+}
+
+function prepareGraphLayoutSettle() {
+  graph?.cooldownTicks(LAYOUT_SETTLE_TICKS)
+  graph?.cooldownTime(LAYOUT_SETTLE_TIME_MS)
+}
+
+function freezeGraphLayout() {
+  graph?.cooldownTicks(0)
+  graph?.cooldownTime(0)
 }
 
 function attachStarfield(graph) {
@@ -174,7 +204,7 @@ function syncNodeMeshes(nodes) {
   }
 }
 
-function applyHighlight(mesh) {
+function cacheHighlightBaseline(mesh) {
   if (!Number.isFinite(mesh.userData.originalColor)) {
     mesh.userData.originalColor = mesh.material.color.getHex()
   }
@@ -182,11 +212,21 @@ function applyHighlight(mesh) {
     mesh.userData.originalEmissiveHex = mesh.material.emissive.getHex()
     mesh.userData.originalEmissiveIntensity = mesh.material.emissiveIntensity
   }
+}
 
+function applyHighlight(mesh) {
+  cacheHighlightBaseline(mesh)
   mesh.material.color.setHex(HIGHLIGHT_COLOR)
   mesh.material.emissive.setHex(HIGHLIGHT_COLOR)
   mesh.material.emissiveIntensity = HIGHLIGHT_EMISSIVE_INTENSITY
   setNodeMeshScale(mesh, 1.5)
+}
+
+function applyHoverHighlight(mesh) {
+  cacheHighlightBaseline(mesh)
+  mesh.material.emissive.setHex(HIGHLIGHT_COLOR)
+  mesh.material.emissiveIntensity = HOVER_EMISSIVE_INTENSITY
+  setNodeMeshScale(mesh, HOVER_SCALE)
 }
 
 function revertHighlight(mesh) {
@@ -203,6 +243,13 @@ function revertHighlight(mesh) {
 
 function selectNode(hit) {
   if (hit && currentSelection?.mesh === hit.mesh) return
+
+  if (hit && currentHover?.mesh === hit.mesh) {
+    currentHover = null
+    hideHoverLabel()
+  } else {
+    clearHoverTarget()
+  }
 
   if (currentSelection) {
     revertHighlight(currentSelection.mesh)
@@ -228,6 +275,83 @@ function clearSelection() {
   }
 
   selectionPanel?.hide()
+}
+
+function updateHoverTarget(cursorPoint) {
+  if (!graph || !isViewportPoint(cursorPoint)) {
+    clearHoverTarget()
+    return
+  }
+
+  const hit = findNodeAtScreenPoint(
+    cursorPoint,
+    graph.camera(),
+    graph.scene(),
+    raycaster
+  )
+  const hoverHit = resolveHoverTarget(hit, {
+    selectedNodeId: currentSelection?.nodeId,
+    draggedNodeId: drag.getTargetNode()?.id
+  })
+
+  if (hoverHit && currentHover?.mesh === hoverHit.mesh) {
+    updateHoverLabel(hoverHit)
+    return
+  }
+
+  clearHoverTarget()
+
+  if (!hoverHit) return
+
+  currentHover = hoverHit
+  applyHoverHighlight(hoverHit.mesh)
+  updateHoverLabel(hoverHit)
+}
+
+function clearHoverTarget() {
+  if (currentHover) {
+    const mesh = currentHover.mesh
+    currentHover = null
+    if (mesh && currentSelection?.mesh !== mesh) revertHighlight(mesh)
+  }
+
+  hideHoverLabel()
+}
+
+function updateHoverLabel(hit) {
+  if (!nodeHoverLabel || !hit?.node) return
+
+  const label = hit.node.label || hit.node.name || hit.node.id || hit.nodeId
+  nodeHoverLabel.textContent = String(label)
+
+  if (!positionHoverLabel(hit.node)) return
+
+  nodeHoverLabel.hidden = false
+}
+
+function positionHoverLabel(node) {
+  if (!graph || !nodeHoverLabel) return false
+
+  const coords = graph.graph2ScreenCoords(
+    finiteGraphCoord(node.x),
+    finiteGraphCoord(node.y),
+    finiteGraphCoord(node.z)
+  )
+
+  if (!coords || !Number.isFinite(coords.x) || !Number.isFinite(coords.y)) {
+    hideHoverLabel()
+    return false
+  }
+
+  nodeHoverLabel.style.left = `${coords.x}px`
+  nodeHoverLabel.style.top = `${coords.y}px`
+  return true
+}
+
+function hideHoverLabel() {
+  if (!nodeHoverLabel) return
+
+  nodeHoverLabel.hidden = true
 }
 
 function getGraphNode(nodeId) {
@@ -265,6 +389,109 @@ function getGraphNeighbors(nodeId) {
 function linkEndpointId(endpoint) {
   if (endpoint && typeof endpoint === 'object') return endpoint.id
   return endpoint
+}
+
+function updateGestureState(gestureState) {
+  gestureHud?.update(gestureState)
+  updateLinkParticlesForGestureState(gestureState)
+}
+
+function updateLinkParticlesForGestureState(gestureState) {
+  const particleCount = linkDirectionalParticlesForGestureState(
+    gestureState,
+    LINK_DIRECTIONAL_PARTICLES
+  )
+  if (particleCount === currentLinkDirectionalParticles) return
+
+  currentLinkDirectionalParticles = particleCount
+  graph?.linkDirectionalParticles(particleCount)
+}
+
+function syncDraggedNodeRender(node) {
+  if (!node) return
+
+  syncNodeMeshPosition(node)
+  syncIncidentLinkPositions(node)
+}
+
+function syncNodeMeshPosition(node) {
+  const mesh = nodeMeshes.get(node.id)
+  if (!mesh) return
+
+  mesh.position.set(
+    finiteGraphCoord(node.x),
+    finiteGraphCoord(node.y),
+    finiteGraphCoord(node.z)
+  )
+}
+
+function syncIncidentLinkPositions(node) {
+  const links = currentGraphData.links || []
+
+  for (const link of links) {
+    const sourceId = linkEndpointId(link.source)
+    const targetId = linkEndpointId(link.target)
+    if (sourceId !== node.id && targetId !== node.id) continue
+
+    syncLinkPosition(link)
+  }
+}
+
+function syncLinkPosition(link) {
+  const lineObj = link.__lineObj
+  if (!lineObj) return
+
+  const start = linkEndpointPosition(link.source)
+  const end = linkEndpointPosition(link.target)
+  if (!start || !end) return
+
+  const line = lineObj.children?.length ? lineObj.children[0] : lineObj
+  if (line?.type === 'Line') {
+    updateLineGeometry(line, start, end)
+  } else if (line?.type === 'Mesh') {
+    updateCylinderLink(line, start, end)
+  }
+}
+
+function linkEndpointPosition(endpoint) {
+  const node = endpoint && typeof endpoint === 'object' ? endpoint : getGraphNode(endpoint)
+  if (!node) return null
+
+  return {
+    x: finiteGraphCoord(node.x),
+    y: finiteGraphCoord(node.y),
+    z: finiteGraphCoord(node.z)
+  }
+}
+
+function updateLineGeometry(line, start, end) {
+  const position = line.geometry?.getAttribute?.('position')
+  if (!position || position.count < 2) return
+
+  position.setXYZ(0, start.x, start.y, start.z)
+  position.setXYZ(1, end.x, end.y, end.z)
+  position.needsUpdate = true
+  line.geometry.computeBoundingSphere?.()
+}
+
+function updateCylinderLink(line, start, end) {
+  linkStartVector.set(start.x, start.y, start.z)
+  linkEndVector.set(end.x, end.y, end.z)
+
+  line.position.copy(linkStartVector)
+  line.scale.z = linkStartVector.distanceTo(linkEndVector)
+
+  if (line.parent) {
+    linkLookAtVector.copy(linkEndVector)
+    line.parent.localToWorld(linkLookAtVector)
+    line.lookAt(linkLookAtVector)
+  } else {
+    line.lookAt(linkEndVector)
+  }
+}
+
+function finiteGraphCoord(value) {
+  return Number.isFinite(value) ? value : 0
 }
 
 async function loadAndRender(handle) {
@@ -312,7 +539,8 @@ function initHandTracking({ button, video, canvas }) {
         orbit.endOrbit()
         zoom.endZoom()
         previousPinchState = false
-        gestureHud?.update('idle')
+        clearHoverTarget()
+        updateGestureState('idle')
       }
 
       const stream = await requestCameraStream()
@@ -458,13 +686,15 @@ function initHandTracking({ button, video, canvas }) {
             if (hit) {
               selectNode(hit)
               drag.beginDrag(hit, graph.camera())
+              freezeGraphLayout()
               selectionAttempt.recordHit()
             }
           }
 
           if (isPinching && drag.isDragging() && isViewportPoint(cursorPoint) && graph) {
             drag.updateDrag(cursorPoint, graph.camera(), raycaster)
-            graph.d3ReheatSimulation()
+            freezeGraphLayout()
+            syncDraggedNodeRender(drag.getTargetNode())
           }
 
           let gestureState = 'idle'
@@ -472,7 +702,8 @@ function initHandTracking({ button, video, canvas }) {
           else if (zoom.isZooming()) gestureState = 'zoom'
           else if (orbit.isOrbiting()) gestureState = 'orbit'
           else if (isPinching) gestureState = 'select'
-          gestureHud?.update(gestureState)
+          updateGestureState(gestureState)
+          updateHoverTarget(cursorPoint)
 
           drawFingertipCursor(canvas, cursorPoint, isPinching)
         },
@@ -490,7 +721,8 @@ function initHandTracking({ button, video, canvas }) {
       canvas.hidden = false
     } catch (err) {
       drag.endDrag()
-      gestureHud?.update('idle')
+      clearHoverTarget()
+      updateGestureState('idle')
       stopVideoStream(video)
       console.warn('Hand tracking failed to start:', err)
       button.disabled = false
@@ -571,6 +803,14 @@ function createNoteReaderElement(documentRef) {
   return element
 }
 
+function createNodeHoverLabelElement(documentRef) {
+  const element = documentRef.createElement('div')
+  element.id = 'node-hover-label'
+  element.hidden = true
+  documentRef.body.appendChild(element)
+  return element
+}
+
 function initEscapeHandling(gestureLegendElement) {
   window.addEventListener('keydown', event => {
     if (event.key !== 'Escape') return
@@ -598,6 +838,7 @@ async function init() {
   const selectionPanelElement = document.getElementById('selection-panel')
   const gestureHudElement = document.getElementById('gesture-hud')
   const gestureLegendElement = document.getElementById('gesture-legend')
+  nodeHoverLabel = createNodeHoverLabelElement(document)
   noteReader = createNoteReader(createNoteReaderElement(document), {
     getNode: getGraphNode,
     getNeighbors: getGraphNeighbors
@@ -614,7 +855,7 @@ async function init() {
       gestureLegend.hide()
     }
   })
-  gestureHud.update('idle')
+  updateGestureState('idle')
   initEscapeHandling(gestureLegendElement)
 
   syncOverlayCanvasSize(handCanvas)
