@@ -1,4 +1,4 @@
-export function createSelectionPanel(panelElement) {
+export function createSelectionPanel(panelElement, { onOpenNote } = {}) {
   return {
     show(node) {
       clearChildren(panelElement)
@@ -19,6 +19,17 @@ export function createSelectionPanel(panelElement) {
         }
 
         panelElement.appendChild(tagRow)
+      }
+
+      if (typeof onOpenNote === 'function') {
+        const openButton = createChildElement(panelElement, 'button')
+        openButton.type = 'button'
+        openButton.className = 'selection-panel-open'
+        openButton.textContent = 'Open'
+        openButton.addEventListener?.('click', () => {
+          onOpenNote(node.id)
+        })
+        panelElement.appendChild(openButton)
       }
 
       panelElement.hidden = false
@@ -56,6 +67,7 @@ function createChildElement(parentElement, tagName) {
       const index = this.children.indexOf(child)
       if (index !== -1) this.children.splice(index, 1)
       return child
-    }
+    },
+    addEventListener() {}
   }
 }

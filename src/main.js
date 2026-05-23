@@ -18,10 +18,20 @@ import { createNodeMesh, setNodeMeshScale, updateNodeMesh } from './node-mesh.js
 import { createNodeSelectionHit } from './node-selection-hit.js'
 import { createPinchSelectionAttempt } from './pinch-selection-attempt.js'
 import { createSelectionPanel } from './selection-panel.js'
+import { createNoteReader } from './note-reader.js'
 import { createStarfield } from './starfield.js'
 import { createGestureHud } from './gesture-hud.js'
 import { createGestureLegend } from './gesture-legend.js'
 import { hasSeenLegend, markLegendSeen } from './gesture-legend-storage.js'
+import { linkDirectionalParticlesForGestureState } from './gesture-particles.js'
+import { hoverNodeLabel, resolveHoverTarget } from './hover-target.js'
+import {
+  createIncidentLinkMap,
+  finiteGraphCoord,
+  linkEndpointId,
+  syncIncidentLinkPositions as syncIncidentLinkRenderPositions,
+  syncLinkPosition
+} from './link-render-sync.js'
 import './style.css'
 
 const HAND_MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task'
@@ -41,6 +51,8 @@ const DEFAULT_COLOR = '#cfd8e8'
 const MISSING_COLOR = '#4a3030'
 const HIGHLIGHT_COLOR = 0xffffff
 const HIGHLIGHT_EMISSIVE_INTENSITY = 1.5
+const HOVER_EMISSIVE_INTENSITY = 0.35
+const HOVER_SCALE = 1.16
 const BLOOM_STRENGTH = 0.8
 const BLOOM_RADIUS = 0.4
 const BLOOM_THRESHOLD = 0.85
@@ -49,6 +61,8 @@ const LINK_OPACITY = 0.42
 const LINK_DIRECTIONAL_PARTICLES = 1
 const LINK_DIRECTIONAL_PARTICLE_SPEED = 0.003
 const LINK_DIRECTIONAL_PARTICLE_WIDTH = 0.8
+const LAYOUT_SETTLE_TICKS = 240
+const LAYOUT_SETTLE_TIME_MS = 8000
 const FINGERTIP_FILTER_OPTIONS = {
   minCutoff: 1.0,
   beta: 0.05,
@@ -90,11 +104,19 @@ function nodeColor(node) {
 
 let graph = null
 let selectionPanel = null
+let noteReader = null
 let gestureHud = null
 let gestureLegend = null
 let currentSelection = null
+let currentHover = null
+let currentGraphData = { nodes: [], links: [] }
+let incidentLinkMap = new Map()
 let trackingButton = null
+let nodeHoverLabel = null
 let handTrackingStarted = false
+let currentLinkDirectionalParticles = LINK_DIRECTIONAL_PARTICLES
+let nodeHoverLabelSize = null
+let nodeHoverLabelText = null
 const raycaster = new THREE.Raycaster()
 const drag = createDragController()
 const orbit = createOrbitController()
@@ -103,12 +125,19 @@ const nodeMaterials = createMaterialTracker()
 const nodeMeshes = new Map()
 
 function render(data) {
+  currentGraphData = data
+  incidentLinkMap = createIncidentLinkMap(data.links || [])
+  noteReader?.close()
   if (!graph) {
     graph = ForceGraph3D()(document.getElementById('graph'))
       .backgroundColor('rgba(0,0,0,0)')
+      .cooldownTicks(LAYOUT_SETTLE_TICKS)
+      .cooldownTime(LAYOUT_SETTLE_TIME_MS)
+      .enableNodeDrag(false)
       .nodeLabel('label')
       .nodeThreeObject(makeNodeMesh)
       .onNodeClick(selectGraphNode)
+      .onEngineStop(freezeGraphLayout)
       .linkColor(() => LINK_COLOR)
       .linkOpacity(LINK_OPACITY)
       .linkDirectionalParticles(LINK_DIRECTIONAL_PARTICLES)
@@ -117,9 +146,23 @@ function render(data) {
     attachStarfield(graph)
     attachSelectionBloom(graph)
   }
+  prepareGraphLayoutSettle()
+  clearHoverTarget()
   clearSelection()
+  currentLinkDirectionalParticles = LINK_DIRECTIONAL_PARTICLES
+  graph.linkDirectionalParticles(currentLinkDirectionalParticles)
   graph.graphData(data)
   syncNodeMeshes(data.nodes || [])
+}
+
+function prepareGraphLayoutSettle() {
+  graph?.cooldownTicks(LAYOUT_SETTLE_TICKS)
+  graph?.cooldownTime(LAYOUT_SETTLE_TIME_MS)
+}
+
+function freezeGraphLayout() {
+  graph?.cooldownTicks(0)
+  graph?.cooldownTime(0)
 }
 
 function attachStarfield(graph) {
@@ -169,7 +212,7 @@ function syncNodeMeshes(nodes) {
   }
 }
 
-function applyHighlight(mesh) {
+function cacheHighlightBaseline(mesh) {
   if (!Number.isFinite(mesh.userData.originalColor)) {
     mesh.userData.originalColor = mesh.material.color.getHex()
   }
@@ -177,11 +220,21 @@ function applyHighlight(mesh) {
     mesh.userData.originalEmissiveHex = mesh.material.emissive.getHex()
     mesh.userData.originalEmissiveIntensity = mesh.material.emissiveIntensity
   }
+}
 
+function applyHighlight(mesh) {
+  cacheHighlightBaseline(mesh)
   mesh.material.color.setHex(HIGHLIGHT_COLOR)
   mesh.material.emissive.setHex(HIGHLIGHT_COLOR)
   mesh.material.emissiveIntensity = HIGHLIGHT_EMISSIVE_INTENSITY
   setNodeMeshScale(mesh, 1.5)
+}
+
+function applyHoverHighlight(mesh) {
+  cacheHighlightBaseline(mesh)
+  mesh.material.emissive.setHex(HIGHLIGHT_COLOR)
+  mesh.material.emissiveIntensity = HOVER_EMISSIVE_INTENSITY
+  setNodeMeshScale(mesh, HOVER_SCALE)
 }
 
 function revertHighlight(mesh) {
@@ -198,6 +251,13 @@ function revertHighlight(mesh) {
 
 function selectNode(hit) {
   if (hit && currentSelection?.mesh === hit.mesh) return
+
+  if (hit && currentHover?.mesh === hit.mesh) {
+    currentHover = null
+    hideHoverLabel()
+  } else {
+    clearHoverTarget()
+  }
 
   if (currentSelection) {
     revertHighlight(currentSelection.mesh)
@@ -223,6 +283,196 @@ function clearSelection() {
   }
 
   selectionPanel?.hide()
+}
+
+function updateHoverTarget(cursorPoint) {
+  if (!graph || !isViewportPoint(cursorPoint)) {
+    clearHoverTarget()
+    return
+  }
+
+  const hit = findNodeAtScreenPoint(
+    cursorPoint,
+    graph.camera(),
+    graph.scene(),
+    raycaster
+  )
+  const hoverHit = resolveHoverTarget(hit, {
+    selectedNodeId: currentSelection?.nodeId,
+    draggedNodeId: drag.getTargetNode()?.id
+  })
+
+  if (hoverHit && currentHover?.mesh === hoverHit.mesh) {
+    updateHoverLabel(hoverHit)
+    return
+  }
+
+  clearHoverTarget()
+
+  if (!hoverHit) return
+
+  currentHover = hoverHit
+  applyHoverHighlight(hoverHit.mesh)
+  updateHoverLabel(hoverHit)
+}
+
+function clearHoverTarget() {
+  if (currentHover) {
+    const mesh = currentHover.mesh
+    currentHover = null
+    if (mesh && currentSelection?.mesh !== mesh) revertHighlight(mesh)
+  }
+
+  hideHoverLabel()
+}
+
+function updateHoverLabel(hit) {
+  if (!nodeHoverLabel || !hit?.node) return
+
+  const label = hoverNodeLabel(hit)
+  if (label === undefined || label === null) {
+    hideHoverLabel()
+    return
+  }
+
+  const labelText = String(label)
+  if (nodeHoverLabelText !== labelText || !nodeHoverLabelSize) {
+    nodeHoverLabel.textContent = labelText
+    nodeHoverLabelText = labelText
+    nodeHoverLabelSize = measureHoverLabel()
+  }
+
+  if (!positionHoverLabel(hit.node, nodeHoverLabelSize)) return
+
+  nodeHoverLabel.hidden = false
+}
+
+function positionHoverLabel(node, labelSize) {
+  if (!graph || !nodeHoverLabel) return false
+
+  const coords = graph.graph2ScreenCoords(
+    finiteGraphCoord(node.x),
+    finiteGraphCoord(node.y),
+    finiteGraphCoord(node.z)
+  )
+
+  if (!coords || !Number.isFinite(coords.x) || !Number.isFinite(coords.y)) {
+    hideHoverLabel()
+    return false
+  }
+
+  const { width, height } = labelSize || measureHoverLabel()
+  const horizontalMargin = 8
+  const verticalMargin = 8
+  const minLeft = (width / 2) + horizontalMargin
+  const maxLeft = window.innerWidth - (width / 2) - horizontalMargin
+  const minTop = height + 12 + verticalMargin
+  const maxTop = window.innerHeight - verticalMargin
+
+  nodeHoverLabel.style.left = `${clampNumber(coords.x, minLeft, maxLeft)}px`
+  nodeHoverLabel.style.top = `${clampNumber(coords.y, minTop, maxTop)}px`
+  nodeHoverLabel.style.visibility = ''
+  return true
+}
+
+function measureHoverLabel() {
+  nodeHoverLabel.hidden = false
+  nodeHoverLabel.style.visibility = 'hidden'
+  nodeHoverLabel.style.left = '0px'
+  nodeHoverLabel.style.top = '0px'
+  const rect = nodeHoverLabel.getBoundingClientRect()
+  return {
+    width: rect.width,
+    height: rect.height
+  }
+}
+
+function clampNumber(value, min, max) {
+  if (!Number.isFinite(value)) return min
+  if (max < min) return (min + max) / 2
+  return Math.min(Math.max(value, min), max)
+}
+
+function hideHoverLabel() {
+  if (!nodeHoverLabel) return
+
+  nodeHoverLabel.hidden = true
+  nodeHoverLabel.style.visibility = ''
+}
+
+function resetHoverLabelMeasurement() {
+  nodeHoverLabelSize = null
+}
+
+function getGraphNode(nodeId) {
+  const nodes = currentGraphData.nodes || []
+  return nodes.find(node => node.id === nodeId) || null
+}
+
+function getGraphNeighbors(nodeId) {
+  const nodes = currentGraphData.nodes || []
+  const links = currentGraphData.links || []
+  const nodesById = new Map(nodes.map(node => [node.id, node]))
+  const seen = new Set()
+  const neighbors = []
+
+  for (const link of links) {
+    const sourceId = linkEndpointId(link.source)
+    const targetId = linkEndpointId(link.target)
+    let neighborId = null
+
+    if (sourceId === nodeId) neighborId = targetId
+    else if (targetId === nodeId) neighborId = sourceId
+
+    if (neighborId == null || neighborId === nodeId || seen.has(neighborId)) continue
+
+    const neighbor = nodesById.get(neighborId)
+    if (!neighbor) continue
+
+    seen.add(neighborId)
+    neighbors.push(neighbor)
+  }
+
+  return neighbors
+}
+
+function updateGestureState(gestureState) {
+  gestureHud?.update(gestureState)
+  updateLinkParticlesForGestureState(gestureState)
+}
+
+function updateLinkParticlesForGestureState(gestureState) {
+  const particleCount = linkDirectionalParticlesForGestureState(
+    gestureState,
+    LINK_DIRECTIONAL_PARTICLES
+  )
+  if (particleCount === currentLinkDirectionalParticles) return
+
+  currentLinkDirectionalParticles = particleCount
+  graph?.linkDirectionalParticles(particleCount)
+}
+
+function syncDraggedNodeRender(node) {
+  if (!node) return
+
+  syncNodeMeshPosition(node)
+  syncIncidentLinkRenderPositions(
+    node,
+    incidentLinkMap,
+    currentGraphData.links || [],
+    link => syncLinkPosition(link, getGraphNode)
+  )
+}
+
+function syncNodeMeshPosition(node) {
+  const mesh = nodeMeshes.get(node.id)
+  if (!mesh) return
+
+  mesh.position.set(
+    finiteGraphCoord(node.x),
+    finiteGraphCoord(node.y),
+    finiteGraphCoord(node.z)
+  )
 }
 
 async function loadAndRender(handle) {
@@ -270,7 +520,8 @@ function initHandTracking({ button, video, canvas }) {
         orbit.endOrbit()
         zoom.endZoom()
         previousPinchState = false
-        gestureHud?.update('idle')
+        clearHoverTarget()
+        updateGestureState('idle')
       }
 
       const stream = await requestCameraStream()
@@ -416,13 +667,15 @@ function initHandTracking({ button, video, canvas }) {
             if (hit) {
               selectNode(hit)
               drag.beginDrag(hit, graph.camera())
+              freezeGraphLayout()
               selectionAttempt.recordHit()
             }
           }
 
           if (isPinching && drag.isDragging() && isViewportPoint(cursorPoint) && graph) {
             drag.updateDrag(cursorPoint, graph.camera(), raycaster)
-            graph.d3ReheatSimulation()
+            freezeGraphLayout()
+            syncDraggedNodeRender(drag.getTargetNode())
           }
 
           let gestureState = 'idle'
@@ -430,7 +683,8 @@ function initHandTracking({ button, video, canvas }) {
           else if (zoom.isZooming()) gestureState = 'zoom'
           else if (orbit.isOrbiting()) gestureState = 'orbit'
           else if (isPinching) gestureState = 'select'
-          gestureHud?.update(gestureState)
+          updateGestureState(gestureState)
+          updateHoverTarget(cursorPoint)
 
           drawFingertipCursor(canvas, cursorPoint, isPinching)
         },
@@ -448,7 +702,8 @@ function initHandTracking({ button, video, canvas }) {
       canvas.hidden = false
     } catch (err) {
       drag.endDrag()
-      gestureHud?.update('idle')
+      clearHoverTarget()
+      updateGestureState('idle')
       stopVideoStream(video)
       console.warn('Hand tracking failed to start:', err)
       button.disabled = false
@@ -521,6 +776,40 @@ function syncOverlayCanvasSize(canvas) {
   canvas.height = window.innerHeight
 }
 
+function createNoteReaderElement(documentRef) {
+  const element = documentRef.createElement('div')
+  element.id = 'note-reader'
+  element.hidden = true
+  documentRef.body.appendChild(element)
+  return element
+}
+
+function createNodeHoverLabelElement(documentRef) {
+  const element = documentRef.createElement('div')
+  element.id = 'node-hover-label'
+  element.hidden = true
+  documentRef.body.appendChild(element)
+  return element
+}
+
+function initEscapeHandling(gestureLegendElement) {
+  window.addEventListener('keydown', event => {
+    if (event.key !== 'Escape') return
+
+    if (noteReader?.isOpen()) {
+      noteReader.close()
+      event.preventDefault()
+      return
+    }
+
+    if (gestureLegendElement && !gestureLegendElement.hidden) {
+      gestureLegend?.hide()
+      markLegendSeen()
+      event.preventDefault()
+    }
+  })
+}
+
 async function init() {
   const pickButton = document.getElementById('pick-vault')
   const changeButton = document.getElementById('change-vault')
@@ -530,7 +819,16 @@ async function init() {
   const selectionPanelElement = document.getElementById('selection-panel')
   const gestureHudElement = document.getElementById('gesture-hud')
   const gestureLegendElement = document.getElementById('gesture-legend')
-  selectionPanel = createSelectionPanel(selectionPanelElement)
+  nodeHoverLabel = createNodeHoverLabelElement(document)
+  noteReader = createNoteReader(createNoteReaderElement(document), {
+    getNode: getGraphNode,
+    getNeighbors: getGraphNeighbors
+  })
+  selectionPanel = createSelectionPanel(selectionPanelElement, {
+    onOpenNote(nodeId) {
+      noteReader?.openNote(nodeId)
+    }
+  })
   gestureHud = createGestureHud(gestureHudElement)
   gestureLegend = createGestureLegend(gestureLegendElement, {
     onDismiss() {
@@ -538,10 +836,14 @@ async function init() {
       gestureLegend.hide()
     }
   })
-  gestureHud.update('idle')
+  updateGestureState('idle')
+  initEscapeHandling(gestureLegendElement)
 
   syncOverlayCanvasSize(handCanvas)
-  window.addEventListener('resize', () => syncOverlayCanvasSize(handCanvas))
+  window.addEventListener('resize', () => {
+    syncOverlayCanvasSize(handCanvas)
+    resetHoverLabelMeasurement()
+  })
 
   await initVaultControls({
     pickButton,
