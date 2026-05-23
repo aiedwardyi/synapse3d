@@ -3,6 +3,7 @@ import { test } from 'node:test'
 import * as THREE from 'three'
 import {
   createIncidentLinkMap,
+  syncLinkPosition,
   syncIncidentLinkPositions,
   updateCylinderLink,
   updateLineGeometry
@@ -34,6 +35,33 @@ test('syncIncidentLinkPositions uses the incident map instead of scanning every 
   )
 
   assert.deepEqual(syncedLinks, [incidentLink])
+})
+
+test('syncLinkPosition returns false when the rendered link object is missing', () => {
+  const result = syncLinkPosition(
+    { source: 'alpha', target: 'beta' },
+    () => ({ x: 0, y: 0, z: 0 })
+  )
+
+  assert.equal(result, false)
+})
+
+test('syncLinkPosition routes line render objects through geometry updates', () => {
+  const geometry = new THREE.BufferGeometry()
+  geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3))
+  const line = new THREE.Line(geometry)
+  const nodes = new Map([
+    ['alpha', { x: 1, y: 2, z: 3 }],
+    ['beta', { x: 4, y: 5, z: 6 }]
+  ])
+
+  const result = syncLinkPosition(
+    { source: 'alpha', target: 'beta', __lineObj: line },
+    nodeId => nodes.get(nodeId)
+  )
+
+  assert.equal(result, true)
+  assert.deepEqual([...geometry.getAttribute('position').array], [1, 2, 3, 4, 5, 6])
 })
 
 test('updateLineGeometry writes start and end coordinates into a line buffer', () => {

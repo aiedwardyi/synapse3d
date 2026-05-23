@@ -115,6 +115,6 @@ function linkEndpointPosition(endpoint, getNode) {
   }
 }
 
-function finiteGraphCoord(value) {
+export function finiteGraphCoord(value) {
   return Number.isFinite(value) ? value : 0
 }

@@ -27,6 +27,7 @@ import { linkDirectionalParticlesForGestureState } from './gesture-particles.js'
 import { resolveHoverTarget } from './hover-target.js'
 import {
   createIncidentLinkMap,
+  finiteGraphCoord,
   linkEndpointId,
   syncIncidentLinkPositions as syncIncidentLinkRenderPositions,
   syncLinkPosition
@@ -348,15 +349,43 @@ function positionHoverLabel(node) {
     return false
   }
 
-  nodeHoverLabel.style.left = `${coords.x}px`
-  nodeHoverLabel.style.top = `${coords.y}px`
+  const { width, height } = measureHoverLabel()
+  const horizontalMargin = 8
+  const verticalMargin = 8
+  const minLeft = (width / 2) + horizontalMargin
+  const maxLeft = window.innerWidth - (width / 2) - horizontalMargin
+  const minTop = height + 12 + verticalMargin
+  const maxTop = window.innerHeight - verticalMargin
+
+  nodeHoverLabel.style.left = `${clampNumber(coords.x, minLeft, maxLeft)}px`
+  nodeHoverLabel.style.top = `${clampNumber(coords.y, minTop, maxTop)}px`
+  nodeHoverLabel.style.visibility = ''
   return true
+}
+
+function measureHoverLabel() {
+  nodeHoverLabel.hidden = false
+  nodeHoverLabel.style.visibility = 'hidden'
+  nodeHoverLabel.style.left = '0px'
+  nodeHoverLabel.style.top = '0px'
+  const rect = nodeHoverLabel.getBoundingClientRect()
+  return {
+    width: rect.width,
+    height: rect.height
+  }
+}
+
+function clampNumber(value, min, max) {
+  if (!Number.isFinite(value)) return min
+  if (max < min) return (min + max) / 2
+  return Math.min(Math.max(value, min), max)
 }
 
 function hideHoverLabel() {
   if (!nodeHoverLabel) return
 
   nodeHoverLabel.hidden = true
+  nodeHoverLabel.style.visibility = ''
 }
 
 function getGraphNode(nodeId) {
@@ -428,10 +457,6 @@ function syncNodeMeshPosition(node) {
     finiteGraphCoord(node.y),
     finiteGraphCoord(node.z)
   )
-}
-
-function finiteGraphCoord(value) {
-  return Number.isFinite(value) ? value : 0
 }
 
 async function loadAndRender(handle) {
