@@ -505,12 +505,11 @@ async function handleVoiceCommand(command) {
   await driveConversation({
     seq,
     conversationSeq,
-    apiKey,
-    initialUtterance: trimmed
+    apiKey
   })
 }
 
-async function driveConversation({ seq, conversationSeq, apiKey, initialUtterance }) {
+async function driveConversation({ seq, conversationSeq, apiKey }) {
   while (
     activeVoiceConversation &&
     activeVoiceConversationSeq === conversationSeq &&
@@ -539,12 +538,16 @@ async function driveConversation({ seq, conversationSeq, apiKey, initialUtteranc
 
   if (!isConversationContextValid(seq, conversationSeq)) return
 
-  finalizeConversation(initialUtterance)
+  finalizeConversation()
 }
 
-function finalizeConversation(originalUtterance) {
+function finalizeConversation() {
   const state = activeVoiceConversation
   if (!state) return
+
+  // Status text always anchors to the original command so NO MATCH / OPENED
+  // never show the user's clarification answer or the clarify question itself.
+  const commandText = state.command || ''
 
   if (state.phase === 'pending_user') {
     renderVoiceAsk(state.askMeta)
@@ -556,9 +559,9 @@ function finalizeConversation(originalUtterance) {
     const nodeId = state.result?.nodeId
     activeVoiceConversation = null
     if (nodeId != null) {
-      openResolvedNode(nodeId, originalUtterance)
+      openResolvedNode(nodeId, commandText)
     } else {
-      renderVoiceStatus({ state: 'unmatched', text: originalUtterance })
+      renderVoiceStatus({ state: 'unmatched', text: commandText })
     }
     return
   }
@@ -568,7 +571,7 @@ function finalizeConversation(originalUtterance) {
   if (state.reason === 'graph_stale') {
     renderVoiceStatus({ state: 'idle' })
   } else {
-    renderVoiceStatus({ state: 'unmatched', text: originalUtterance })
+    renderVoiceStatus({ state: 'unmatched', text: commandText })
   }
 }
 
@@ -592,8 +595,12 @@ function isConversationContextValid(commandSeq, conversationSeq) {
 
 function cancelActiveConversation() {
   voiceListener?.disarmAwaitingAnswer()
+  const wasAsking = voiceStatusElement?.getAttribute('data-state') === 'asking'
   activeVoiceConversation = null
   activeVoiceConversationSeq++
+  if (wasAsking) {
+    renderVoiceStatus(voiceListener?.isListening() ? { state: 'listening' } : { state: 'idle' })
+  }
 }
 
 async function handleVoiceAnswer(answerText) {
@@ -615,27 +622,27 @@ async function handleVoiceAnswer(answerText) {
   if (activeVoiceConversation.phase === 'pending_api') {
     const apiKey = import.meta.env?.VITE_ANTHROPIC_API_KEY
     if (!apiKey) {
+      const commandText = activeVoiceConversation.command || ''
       activeVoiceConversation = null
-      renderVoiceStatus({ state: 'unmatched', text: trimmed })
+      renderVoiceStatus({ state: 'unmatched', text: commandText })
       return
     }
     await driveConversation({
       seq: latestVoiceCommandSeq,
       conversationSeq,
-      apiKey,
-      initialUtterance: trimmed
+      apiKey
     })
     return
   }
 
-  finalizeConversation(trimmed)
+  finalizeConversation()
 }
 
 function handleVoiceAnswerTimeout() {
   const state = activeVoiceConversation
   if (!state) return
   activeVoiceConversation = abortConversation(state, 'timeout')
-  finalizeConversation(state.askMeta?.question || '')
+  finalizeConversation()
 }
 
 function renderVoiceStatus(state) {

@@ -155,7 +155,7 @@ async function sendMessagesRequest({ messages, candidates, apiKey }) {
 
 function normalizeResponse(response, candidates) {
   const blocks = Array.isArray(response?.content) ? response.content : []
-  const byEncodedId = new Map(candidates.map(c => [c.id, c.originalId]))
+  const byEncodedId = new Map(candidates.map(c => [c.id, c]))
 
   for (const block of blocks) {
     if (block?.type !== 'tool_use') continue
@@ -165,7 +165,7 @@ function normalizeResponse(response, candidates) {
       if (typeof nodeId === 'string' && byEncodedId.has(nodeId)) {
         return {
           type: 'open',
-          nodeId: byEncodedId.get(nodeId),
+          nodeId: byEncodedId.get(nodeId).originalId,
           assistantBlocks: blocks
         }
       }
@@ -178,16 +178,20 @@ function normalizeResponse(response, candidates) {
       const seen = new Set()
       for (const opt of rawOptions) {
         const encoded = typeof opt?.nodeId === 'string' ? opt.nodeId : null
-        if (!encoded || !byEncodedId.has(encoded)) continue
-        const originalId = byEncodedId.get(encoded)
-        if (seen.has(originalId)) continue
-        seen.add(originalId)
+        if (!encoded) continue
+        const candidate = byEncodedId.get(encoded)
+        if (!candidate) continue
+        if (seen.has(candidate.originalId)) continue
+        seen.add(candidate.originalId)
         options.push({
-          nodeId: originalId,
-          label: typeof opt.label === 'string' ? opt.label : ''
+          nodeId: candidate.originalId,
+          // Use the canonical candidate label, not the model's input field, so
+          // chips and the label-word shortcut stay anchored to real notes even
+          // if the model paraphrases.
+          label: typeof candidate.label === 'string' ? candidate.label : ''
         })
       }
-      if (options.length < 2) continue
+      if (options.length < 2 || options.length > 3) continue
       return {
         type: 'ask',
         toolUseId: typeof block.id === 'string' ? block.id : null,

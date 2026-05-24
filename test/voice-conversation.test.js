@@ -58,6 +58,15 @@ test('startConversation builds initial user message and pending_api phase', () =
   assert.ok(state.messages[0].content.includes('Precision Note'))
 })
 
+test('startConversation preserves the trimmed command on state for later status text', () => {
+  const state = startConversation({
+    command: '  open the precision note  ',
+    candidates: [C_RECENT],
+    graphVersion: 1
+  })
+  assert.equal(state.command, 'open the precision note')
+})
+
 test('startConversation accepts a custom maxRounds', () => {
   const state = startConversation({
     command: 'x', candidates: [C_RECENT], graphVersion: 1, maxRounds: 5

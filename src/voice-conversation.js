@@ -17,11 +17,13 @@ const NORMALIZE_RE = /[.,!?;:"'`(){}\[\]\-_/]/g
 
 export function startConversation({ command, candidates, graphVersion, maxRounds = DEFAULT_MAX_ROUNDS } = {}) {
   const candidateList = Array.isArray(candidates) ? candidates : []
+  const trimmedCommand = typeof command === 'string' ? command.trim() : ''
   return {
     phase: 'pending_api',
+    command: trimmedCommand,
     candidates: candidateList,
     graphVersion,
-    messages: [buildInitialUserMessage(command, candidateList)],
+    messages: [buildInitialUserMessage(trimmedCommand, candidateList)],
     rounds: 0,
     maxRounds,
     askMeta: null,
@@ -116,10 +118,9 @@ function buildInitialUserMessage(command, candidates) {
     snippet: c.snippet,
     modified: c.modified
   }))
-  const trimmed = typeof command === 'string' ? command.trim() : ''
   return {
     role: 'user',
-    content: `Request: ${trimmed}\n\nCandidate notes:\n${JSON.stringify(promptCandidates, null, 2)}`
+    content: `Request: ${command}\n\nCandidate notes:\n${JSON.stringify(promptCandidates, null, 2)}`
   }
 }
 

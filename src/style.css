@@ -764,7 +764,9 @@ body.note-reader-open #gesture-hud {
 }
 
 #voice-status .voice-status-option {
+  max-width: 100%;
   padding: 2px 7px;
+  overflow: hidden;
   background: rgba(160, 122, 226, 0.18);
   border: 1px solid rgba(160, 122, 226, 0.52);
   border-radius: 3px;
@@ -772,6 +774,7 @@ body.note-reader-open #gesture-hud {
   font-size: 10px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
