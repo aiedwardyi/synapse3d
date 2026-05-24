@@ -1,10 +1,11 @@
 import { extractWakeCommand } from './voice-command.js'
 
 const RESTART_DEBOUNCE_MS = 350
+const RESTART_BACKOFF_MS = 1200
 const TIGHT_ERROR_WINDOW_MS = 1000
 const MAX_CONSECUTIVE_ERRORS = 3
 const PERMANENT_ERROR_NAMES = new Set(['not-allowed', 'service-not-allowed'])
-const QUIET_ERROR_NAMES = new Set(['no-speech', 'aborted', 'network'])
+const QUIET_ERROR_NAMES = new Set(['no-speech', 'aborted'])
 
 export function createVoiceListener({
   onCommand,
@@ -55,11 +56,12 @@ export function createVoiceListener({
     try {
       recognition.start()
     } catch (err) {
-      active = false
+      // Chrome throws InvalidStateError if the prior recognition is still tearing down.
+      // Retry on a backoff rather than killing the listener.
       safelyStopRecognition()
       recognition = null
       reportError(err?.message || 'start-failed', err)
-      emitState({ state: 'idle' })
+      if (active) setTimeout(spinUpRecognition, RESTART_BACKOFF_MS)
     }
   }
 
