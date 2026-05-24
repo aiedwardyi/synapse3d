@@ -24,10 +24,10 @@ export function parseVoiceCommand(command) {
   if (CLEAR_COMMANDS.has(normalized)) return { action: 'clear' }
   if (RECENTER_COMMANDS.has(normalized)) return { action: 'recenter' }
 
-  if (normalized in ZOOM_DIRECTIONS) {
+  if (Object.hasOwn(ZOOM_DIRECTIONS, normalized)) {
     return { action: 'zoom', arg: ZOOM_DIRECTIONS[normalized] }
   }
-  if (normalized in ROTATE_DIRECTIONS) {
+  if (Object.hasOwn(ROTATE_DIRECTIONS, normalized)) {
     return { action: 'rotate', arg: ROTATE_DIRECTIONS[normalized] }
   }
 
@@ -67,11 +67,11 @@ export function extractWakeCommand(transcript, { wakeWords = DEFAULT_WAKE_WORDS 
   return null
 }
 
-export function matchNoteCommand(command, nodes) {
+export function matchNoteCommand(command, nodes, { stripPrefix = true } = {}) {
   const normalized = normalizeText(command)
   if (!normalized) return null
 
-  const query = stripCommandPrefix(normalized)
+  const query = stripPrefix ? stripCommandPrefix(normalized) : normalized
   if (!query) return null
 
   const candidates = Array.isArray(nodes) ? nodes : []

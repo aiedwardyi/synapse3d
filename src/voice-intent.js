@@ -40,7 +40,7 @@ export function withCandidateCacheBreakpoint(messages) {
   const candidatesText = first.content.slice(idx)
 
   const transformedFirst = {
-    role: first.role,
+    ...first,
     content: [
       { type: 'text', text: requestText },
       { type: 'text', text: candidatesText, cache_control: { type: 'ephemeral' } }

@@ -633,7 +633,10 @@ function dispatchDirectVoiceCommand({ action, arg }, commandText) {
   }
   if (action === 'select') {
     const nodes = currentGraphData.nodes || []
-    const match = matchNoteCommand(arg, nodes)
+    // parseVoiceCommand already consumed 'select', so don't let matchNoteCommand
+    // strip another verb out of the target (eg "select open api" must search the
+    // full label "open api", not just "api").
+    const match = matchNoteCommand(arg, nodes, { stripPrefix: false })
     const node = match ? getGraphNode(match.nodeId) : null
     if (node) {
       selectGraphNode(node)

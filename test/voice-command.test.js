@@ -193,6 +193,24 @@ test('matchNoteCommand handles empty or missing node list', () => {
   assert.equal(matchNoteCommand('alpha', undefined), null)
 })
 
+test('matchNoteCommand can skip command-prefix stripping when asked', () => {
+  // When the caller already consumed its own verb (eg "select open api"),
+  // stripPrefix:false keeps the query intact so "Open API" wins over "API".
+  const nodes = [
+    { id: 'api', label: 'API' },
+    { id: 'open-api', label: 'Open API' }
+  ]
+
+  // Default behaviour strips the verb and selects the shorter label.
+  assert.equal(matchNoteCommand('open api', nodes).nodeId, 'api')
+
+  // stripPrefix:false matches the full phrase against labels.
+  assert.equal(
+    matchNoteCommand('open api', nodes, { stripPrefix: false }).nodeId,
+    'open-api'
+  )
+})
+
 test('extractDirectCommand accepts transcripts that start with a command verb', () => {
   assert.equal(extractDirectCommand('open alpha'), 'open alpha')
   assert.equal(extractDirectCommand('READ Alpha'), 'read alpha')
@@ -278,6 +296,14 @@ test('parseVoiceCommand returns null for unknown commands', () => {
   assert.equal(parseVoiceCommand('zoom'), null)
   assert.equal(parseVoiceCommand('rotate'), null)
   assert.equal(parseVoiceCommand('rotate sideways'), null)
+})
+
+test('parseVoiceCommand does not treat Object.prototype keys as direction commands', () => {
+  // `in` walks the prototype chain, so a plain-object lookup table would
+  // accept "constructor" or "toString" as if they were declared keys.
+  assert.equal(parseVoiceCommand('constructor'), null)
+  assert.equal(parseVoiceCommand('toString'), null)
+  assert.equal(parseVoiceCommand('hasOwnProperty'), null)
 })
 
 test('parseVoiceCommand returns null for empty or non-string input', () => {
