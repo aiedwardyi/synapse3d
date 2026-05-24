@@ -9,6 +9,7 @@ function fileHandle(name, text, options = {}) {
     async getFile() {
       if (options.failRead) throw new Error(`Cannot read ${name}`)
       return {
+        lastModified: options.lastModified ?? 0,
         async text() {
           if (options.failText) throw new Error(`Cannot read text for ${name}`)
           return text
@@ -172,6 +173,20 @@ test('creates placeholders and stats for broken wikilinks', async () => {
   assert.equal(placeholder.ambiguous, false)
   assert.deepEqual(result.links, [{ source: 'Home.md', target: placeholder.id }])
   assert.equal(result.stats.brokenLinks, 1)
+})
+
+test('populates modified from file.lastModified on each node', async () => {
+  const vault = rootHandle([
+    fileHandle('Old.md', '', { lastModified: 1000 }),
+    fileHandle('New.md', '', { lastModified: 99999 })
+  ])
+
+  const result = await parseVault(vault)
+  const old = result.nodes.find(node => node.id === 'Old.md')
+  const fresh = result.nodes.find(node => node.id === 'New.md')
+
+  assert.equal(old.modified, 1000)
+  assert.equal(fresh.modified, 99999)
 })
 
 test('continues parsing when a markdown file cannot be read', async t => {

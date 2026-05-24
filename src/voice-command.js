@@ -1,5 +1,5 @@
-const DEFAULT_WAKE_WORDS = ['claude', 'claud', 'cloud', 'clod', 'clyde']
-const COMMAND_PREFIXES = ['show me', 'go to', 'open', 'read', 'show']
+const DEFAULT_WAKE_WORDS = ['claude', 'claud', 'cloud', 'clod', 'clyde', 'clan']
+export const COMMAND_PREFIXES = ['show me', 'go to', 'open', 'read', 'show']
 
 export function extractDirectCommand(transcript) {
   const normalized = normalizeText(transcript)
@@ -82,7 +82,7 @@ function allQueryWordsHaveWordPrefix(query, label) {
   return queryWords.every(word => hasWordPrefix(word, label))
 }
 
-function stripCommandPrefix(text) {
+export function stripCommandPrefix(text) {
   const sorted = [...COMMAND_PREFIXES].sort((a, b) => b.length - a.length)
   for (const prefix of sorted) {
     if (text === prefix) return ''

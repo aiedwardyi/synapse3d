@@ -19,6 +19,7 @@ export function createVoiceListener({
   let recognition = null
   let active = false
   let restartPending = false
+  let restartTimerId = null
   let lastErrorAt = 0
   let consecutiveErrors = 0
 
@@ -43,8 +44,15 @@ export function createVoiceListener({
     if (!active) return
     active = false
     restartPending = false
+    clearRestartTimer()
     safelyStopRecognition()
     emitState({ state: 'idle' })
+  }
+
+  function clearRestartTimer() {
+    if (restartTimerId === null) return
+    clearTimeout(restartTimerId)
+    restartTimerId = null
   }
 
   function spinUpRecognition() {
@@ -76,7 +84,8 @@ export function createVoiceListener({
       reportError(err?.message || 'start-failed', err)
       if (active && !restartPending) {
         restartPending = true
-        setTimeout(() => {
+        restartTimerId = setTimeout(() => {
+          restartTimerId = null
           restartPending = false
           if (!active) return
           spinUpRecognition()
@@ -106,6 +115,12 @@ export function createVoiceListener({
 
       const transcript = result[0]?.transcript
       if (typeof transcript !== 'string') continue
+
+      // A real final result means recognition is healthy; drop any error
+      // counter we accumulated so transient errors across a long session
+      // don't eventually trip the restart-loop guard.
+      consecutiveErrors = 0
+      lastErrorAt = 0
 
       processTranscript(transcript)
     }
@@ -169,7 +184,8 @@ export function createVoiceListener({
     if (!active || restartPending) return
 
     restartPending = true
-    setTimeout(() => {
+    restartTimerId = setTimeout(() => {
+      restartTimerId = null
       restartPending = false
       if (!active) return
       spinUpRecognition()
