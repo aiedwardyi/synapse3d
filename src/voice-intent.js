@@ -23,7 +23,6 @@ export async function resolveNoteByIntent(command, nodes, { apiKey } = {}) {
   if (searchResults.length === 0) return null
 
   const candidates = encodeCandidates(searchResults)
-  if (candidates.length === 0) return null
 
   const response = await sendMessagesRequest(command.trim(), candidates, apiKey)
   if (!response) return null

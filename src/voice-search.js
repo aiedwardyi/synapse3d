@@ -1,4 +1,5 @@
-const COMMAND_PREFIXES = ['show me', 'go to', 'open', 'read', 'show']
+import { COMMAND_PREFIXES } from './voice-command.js'
+
 const STOPWORDS = new Set([
   'the', 'a', 'an',
   'and', 'or', 'but',
@@ -78,15 +79,15 @@ function buildSnippet(content, terms) {
 
   // Length-preserving so match.index aligns with the original content.
   const haystack = normalizeForMatching(content)
-  let bestIndex = -1
+  let earliestMatchIndex = -1
   for (const term of terms) {
     const idx = findWordIndex(haystack, term)
-    if (idx !== -1 && (bestIndex === -1 || idx < bestIndex)) bestIndex = idx
+    if (idx !== -1 && (earliestMatchIndex === -1 || idx < earliestMatchIndex)) earliestMatchIndex = idx
   }
-  if (bestIndex === -1) return ''
+  if (earliestMatchIndex === -1) return ''
 
-  const start = Math.max(0, bestIndex - SNIPPET_BEFORE)
-  const end = Math.min(content.length, bestIndex + SNIPPET_AFTER)
+  const start = Math.max(0, earliestMatchIndex - SNIPPET_BEFORE)
+  const end = Math.min(content.length, earliestMatchIndex + SNIPPET_AFTER)
   let excerpt = content.slice(start, end).replace(/\s+/g, ' ').trim()
   if (start > 0) excerpt = `...${excerpt}`
   if (end < content.length) excerpt = `${excerpt}...`
