@@ -22,12 +22,20 @@ export function searchNotes(query, nodes, { limit = DEFAULT_LIMIT } = {}) {
   const stripped = stripCommandPrefix(normalize(query))
   if (!stripped) return []
 
-  const terms = stripped.split(' ').filter(Boolean).filter(t => !STOPWORDS.has(t))
-  if (terms.length === 0) return []
+  const allTokens = stripped.split(' ').filter(Boolean)
+  if (allTokens.length === 0) return []
+  // If filtering would leave nothing, keep the originals so a note titled
+  // exactly "Notes" or "Files" can still resolve via voice.
+  const meaningful = allTokens.filter(t => !STOPWORDS.has(t))
+  const terms = meaningful.length > 0 ? meaningful : allTokens
 
   if (!Array.isArray(nodes) || nodes.length === 0) return []
 
   const scored = []
+  // First positive-scoring node per id wins. A later duplicate with a higher
+  // score will be silently dropped, but ids should be unique in a healthy
+  // vault so this is acceptable. Do not move seen.add above the score check:
+  // a zero-scoring first duplicate must not suppress a later positive match.
   const seen = new Set()
 
   for (const node of nodes) {
@@ -96,7 +104,7 @@ function buildSnippet(content, terms) {
 
 function countWordOccurrences(haystack, term) {
   if (!haystack || !term) return 0
-  const re = buildBoundaryRegex(term, 'g')
+  const re = buildBoundaryRegex(term, { global: true })
   let count = 0
   while (re.exec(haystack) !== null) count++
   return count
@@ -104,14 +112,19 @@ function countWordOccurrences(haystack, term) {
 
 function findWordIndex(haystack, term) {
   if (!haystack || !term) return -1
-  const match = buildBoundaryRegex(term, '').exec(haystack)
+  const match = buildBoundaryRegex(term).exec(haystack)
   return match ? match.index : -1
 }
 
 // Lookaround boundaries so terms ending in non-word chars ("85%") and
-// non-ASCII letters ("résumé") still match. \b is ASCII-only in JS.
-function buildBoundaryRegex(term, flags) {
-  return new RegExp(`(?<=^|\\W)${escapeRegex(term)}(?=\\W|$)`, flags)
+// non-ASCII letters ("résumé") still match. Uses Unicode letter/number
+// classes so "sumé" does not match inside "résumé" (\b alone is
+// ASCII-only in JS and treats é as a boundary).
+function buildBoundaryRegex(term, { global = false } = {}) {
+  return new RegExp(
+    `(?<=^|[^\\p{L}\\p{N}])${escapeRegex(term)}(?=[^\\p{L}\\p{N}]|$)`,
+    global ? 'gu' : 'u'
+  )
 }
 
 function escapeRegex(value) {

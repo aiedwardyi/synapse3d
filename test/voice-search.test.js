@@ -193,3 +193,23 @@ test('keeps a later duplicate when the earlier one scores zero', () => {
   assert.equal(results.length, 1)
   assert.equal(results[0].label, 'Alpha')
 })
+
+test('matches a note whose label is entirely a stopword like "Notes"', () => {
+  const nodes = [node({ id: 'a', label: 'Notes' })]
+  const results = searchNotes('open notes', nodes)
+  assert.equal(results.length, 1)
+  assert.equal(results[0].id, 'a')
+})
+
+test('treats non-ASCII letters as word characters (no false substring match)', () => {
+  const nodes = [node({ id: 'a', label: 'Other', content: 'wrote a résumé yesterday' })]
+  // "sumé" must NOT match inside "résumé"; the é is a letter, not a boundary.
+  assert.deepEqual(searchNotes('sumé', nodes), [])
+})
+
+test('matches an exact non-ASCII term in body', () => {
+  const nodes = [node({ id: 'a', label: 'Other', content: 'wrote a résumé yesterday' })]
+  const results = searchNotes('résumé', nodes)
+  assert.equal(results.length, 1)
+  assert.equal(results[0].id, 'a')
+})
