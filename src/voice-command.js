@@ -1,4 +1,4 @@
-const DEFAULT_WAKE_WORDS = ['claude', 'claud', 'cloud', 'clod', 'clyde']
+const DEFAULT_WAKE_WORDS = ['claude', 'claud', 'cloud', 'clod', 'clyde', 'clan']
 const COMMAND_PREFIXES = ['show me', 'go to', 'open', 'read', 'show']
 
 export function extractDirectCommand(transcript) {

@@ -144,3 +144,44 @@ test('omits nodes with zero score', () => {
   assert.equal(results.length, 1)
   assert.equal(results[0].id, 'match')
 })
+
+test('filters stopwords so short labels beat noisy bodies', () => {
+  const nodes = [
+    node({ id: 'target', label: 'Determinism and Precision' }),
+    node({ id: 'noisy', label: 'Other', content: ('and '.repeat(100)) + 'file file' })
+  ]
+  const results = searchNotes('open determinism and precision file', nodes)
+  assert.equal(results[0].id, 'target')
+})
+
+test('returns empty when query is only stopwords', () => {
+  const nodes = [node({ id: 'a', label: 'Alpha' })]
+  assert.deepEqual(searchNotes('the file', nodes), [])
+  assert.deepEqual(searchNotes('open the file', nodes), [])
+})
+
+test('matches terms ending in non-word characters like 85%', () => {
+  const nodes = [
+    node({ id: 'a', label: 'Stats', content: 'we got 85% on the test' }),
+    node({ id: 'b', label: 'Other', content: 'page 85-A reference' })
+  ]
+  const results = searchNotes('85%', nodes)
+  assert.equal(results[0].id, 'a')
+})
+
+test('matches body terms with underscores in the source', () => {
+  const nodes = [
+    node({ id: 'a', label: 'Other', content: 'see also determinism_and_precision below' })
+  ]
+  const results = searchNotes('determinism precision', nodes)
+  assert.equal(results.length, 1)
+  assert.equal(results[0].id, 'a')
+})
+
+test('deduplicates nodes that share an id', () => {
+  const dup1 = node({ id: 'dup', label: 'Alpha' })
+  const dup2 = node({ id: 'dup', label: 'Alpha (copy)' })
+  const results = searchNotes('alpha', [dup1, dup2])
+  assert.equal(results.length, 1)
+  assert.equal(results[0].id, 'dup')
+})
