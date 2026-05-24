@@ -67,7 +67,7 @@ export async function parseVault(rootHandle) {
     const label = stripMarkdownExtension(file.name)
     const tags = extractTags(file.text)
 
-    nodes.push({ id, label, tags, content: file.text, missing: false })
+    nodes.push({ id, label, tags, content: file.text, modified: file.modified, missing: false })
     addNoteToIndex(noteIndex, id, label)
 
     for (const target of extractWikilinks(file.text)) {
@@ -112,7 +112,7 @@ async function* walkVault(dirHandle, relPath, stats) {
         const file = await entry.getFile()
         const text = await file.text()
         stats.filesScanned++
-        yield { path: entryPath, name: entry.name, text }
+        yield { path: entryPath, name: entry.name, text, modified: file.lastModified ?? 0 }
       } catch (err) {
         stats.fileReadErrors++
         console.warn(`Unable to read markdown file "${entryPath}":`, err)

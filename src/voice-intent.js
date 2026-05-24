@@ -1,22 +1,28 @@
+import { searchNotes } from './voice-search.js'
+
 const ENDPOINT = 'https://api.anthropic.com/v1/messages'
 const MODEL = 'claude-sonnet-4-6'
 const ANTHROPIC_VERSION = '2023-06-01'
 const TOOL_NAME = 'open_note'
 const MAX_TOKENS = 256
-const MAX_CANDIDATES = 200
+const SEARCH_LIMIT = 8
 const REQUEST_TIMEOUT_MS = 8000
 const SYSTEM_PROMPT = [
   'You help a user navigate a small knowledge graph by voice.',
-  'You will receive the spoken request and a JSON list of available notes (id and label).',
-  'Call the open_note tool only when one note is clearly the best match for the request.',
-  'If no note fits, do not call the tool.'
+  'You receive the spoken request and a JSON list of candidate notes: id, label, snippet (excerpt of the note body), and modified (epoch ms).',
+  'Call the open_note tool with the id of the candidate whose label or snippet best matches the request.',
+  'If two or more candidates fit equally well, pick the one with the largest modified value (most recent).',
+  'If no candidate fits the request, do not call the tool.'
 ].join(' ')
 
 export async function resolveNoteByIntent(command, nodes, { apiKey } = {}) {
   if (typeof command !== 'string' || !command.trim()) return null
   if (typeof apiKey !== 'string' || !apiKey) return null
 
-  const candidates = buildCandidates(nodes)
+  const searchResults = searchNotes(command, nodes, { limit: SEARCH_LIMIT })
+  if (searchResults.length === 0) return null
+
+  const candidates = encodeCandidates(searchResults)
   if (candidates.length === 0) return null
 
   const response = await sendMessagesRequest(command.trim(), candidates, apiKey)
@@ -25,29 +31,14 @@ export async function resolveNoteByIntent(command, nodes, { apiKey } = {}) {
   return pickToolUseNodeId(response, candidates)
 }
 
-function buildCandidates(nodes) {
-  if (!Array.isArray(nodes)) return []
-  const seenOriginals = new Set()
+function encodeCandidates(searchResults) {
   const stringIdsInUse = new Set()
   const candidates = []
 
-  for (const node of nodes) {
-    if (!node || node.missing || node.id == null) continue
-    if (seenOriginals.has(node.id)) continue
-
-    if (candidates.length >= MAX_CANDIDATES) {
-      console.warn(
-        `voice-intent: vault has more than ${MAX_CANDIDATES} nodes; ` +
-        'only the first batch is sent for intent resolution'
-      )
-      break
-    }
-
-    seenOriginals.add(node.id)
-
+  for (const result of searchResults) {
     // Mixed-type ids (e.g. 1 and '1') would collapse on String() alone;
     // suffix collisions so both stay distinct in the tool enum.
-    let id = String(node.id)
+    let id = String(result.id)
     if (stringIdsInUse.has(id)) {
       let suffix = 2
       while (stringIdsInUse.has(`${id}__${suffix}`)) suffix++
@@ -55,8 +46,13 @@ function buildCandidates(nodes) {
     }
     stringIdsInUse.add(id)
 
-    const label = typeof node.label === 'string' && node.label.trim() ? node.label : String(node.id)
-    candidates.push({ id, label, originalId: node.id })
+    candidates.push({
+      id,
+      label: result.label,
+      snippet: result.snippet,
+      modified: result.modified,
+      originalId: result.id
+    })
   }
 
   return candidates
@@ -64,7 +60,9 @@ function buildCandidates(nodes) {
 
 async function sendMessagesRequest(command, candidates, apiKey) {
   const ids = candidates.map(candidate => candidate.id)
-  const promptCandidates = candidates.map(({ id, label }) => ({ id, label }))
+  const promptCandidates = candidates.map(({ id, label, snippet, modified }) => ({
+    id, label, snippet, modified
+  }))
   const body = {
     model: MODEL,
     max_tokens: MAX_TOKENS,
@@ -72,18 +70,18 @@ async function sendMessagesRequest(command, candidates, apiKey) {
     tool_choice: { type: 'auto' },
     messages: [{
       role: 'user',
-      content: `Request: ${command}\n\nAvailable notes:\n${JSON.stringify(promptCandidates, null, 2)}`
+      content: `Request: ${command}\n\nCandidate notes:\n${JSON.stringify(promptCandidates, null, 2)}`
     }],
     tools: [{
       name: TOOL_NAME,
-      description: 'Open the note that best matches the spoken request.',
+      description: 'Open the candidate note that best matches the spoken request.',
       input_schema: {
         type: 'object',
         properties: {
           nodeId: {
             type: 'string',
             enum: ids,
-            description: 'The id of the note to open.'
+            description: 'The id of the candidate note to open.'
           }
         },
         required: ['nodeId']

@@ -120,6 +120,7 @@ const VOICE_TRANSIENT_REVERT_MS = 2400
 let currentSelection = null
 let currentHover = null
 let currentGraphData = { nodes: [], links: [] }
+let currentGraphVersion = 0
 let incidentLinkMap = new Map()
 let trackingButton = null
 let nodeHoverLabel = null
@@ -136,6 +137,7 @@ const nodeMeshes = new Map()
 
 function render(data) {
   currentGraphData = data
+  currentGraphVersion++
   incidentLinkMap = createIncidentLinkMap(data.links || [])
   noteReader?.close()
   if (!graph) {
@@ -453,6 +455,7 @@ function updateGestureState(gestureState) {
 
 async function handleVoiceCommand(command) {
   const seq = ++latestVoiceCommandSeq
+  const versionAtStart = currentGraphVersion
   const trimmed = typeof command === 'string' ? command.trim() : ''
   if (!trimmed) return
 
@@ -471,8 +474,10 @@ async function handleVoiceCommand(command) {
   }
 
   // Guard against a newer command landing while resolution was in flight,
-  // or the user toggling Voice OFF before the async path finished.
+  // the user toggling Voice OFF before the async path finished, or a vault
+  // swap that invalidates the candidate id space.
   if (seq !== latestVoiceCommandSeq) return
+  if (versionAtStart !== currentGraphVersion) return
   if (voiceListener && !voiceListener.isListening()) return
 
   if (resolvedNodeId == null) {
