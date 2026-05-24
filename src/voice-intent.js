@@ -10,9 +10,9 @@ const REQUEST_TIMEOUT_MS = 8000
 const SYSTEM_PROMPT = [
   'You help a user navigate a small knowledge graph by voice.',
   'You receive the spoken request and a JSON list of candidate notes: id, label, snippet (excerpt of the note body), and modified (file last-modified time as epoch milliseconds; larger = more recent).',
-  'Call the open_note tool with the id of the candidate whose label or snippet best matches the request.',
+  'Call the open_note tool only when one candidate is clearly the best match for the request based on its label or snippet. Do not call the tool for weak or incidental matches.',
   'If two or more candidates fit equally well, pick the one that was most recently modified (the candidate with the highest modified value). This is a tie-breaker by recency, not by file size.',
-  'If no candidate fits the request, do not call the tool.'
+  'If no candidate clearly fits the request, do not call the tool.'
 ].join(' ')
 
 export async function resolveNoteByIntent(command, nodes, { apiKey } = {}) {

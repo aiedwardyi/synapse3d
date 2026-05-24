@@ -82,7 +82,7 @@ function allQueryWordsHaveWordPrefix(query, label) {
   return queryWords.every(word => hasWordPrefix(word, label))
 }
 
-function stripCommandPrefix(text) {
+export function stripCommandPrefix(text) {
   const sorted = [...COMMAND_PREFIXES].sort((a, b) => b.length - a.length)
   for (const prefix of sorted) {
     if (text === prefix) return ''

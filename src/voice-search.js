@@ -1,4 +1,4 @@
-import { COMMAND_PREFIXES } from './voice-command.js'
+import { stripCommandPrefix } from './voice-command.js'
 
 const STOPWORDS = new Set([
   'the', 'a', 'an',
@@ -105,9 +105,9 @@ function buildSnippet(content, terms) {
 function countWordOccurrences(haystack, term) {
   if (!haystack || !term) return 0
   const re = buildBoundaryRegex(term, { global: true })
-  let count = 0
-  while (re.exec(haystack) !== null) count++
-  return count
+  // matchAll throws on a non-global regex (useful guard) and is immune to
+  // the zero-length-match infinite loop that while(re.exec()) can hit.
+  return [...haystack.matchAll(re)].length
 }
 
 function findWordIndex(haystack, term) {
@@ -141,16 +141,11 @@ function normalize(text) {
 }
 
 // Length-preserving variant so body match indices map back to original content.
+// Replace runs first because punctuation->space is length-neutral; toLowerCase
+// can expand certain Unicode characters (e.g. Turkish capital I → "i̇")
+// and would otherwise shift indices for the snippet slice.
 function normalizeForMatching(text) {
   if (typeof text !== 'string') return ''
-  return text.toLowerCase().replace(NORMALIZE_RE, ' ')
+  return text.replace(NORMALIZE_RE, ' ').toLowerCase()
 }
 
-function stripCommandPrefix(text) {
-  const sorted = [...COMMAND_PREFIXES].sort((a, b) => b.length - a.length)
-  for (const prefix of sorted) {
-    if (text === prefix) return ''
-    if (text.startsWith(`${prefix} `)) return text.slice(prefix.length + 1).trim()
-  }
-  return text
-}
