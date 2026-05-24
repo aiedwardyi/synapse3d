@@ -1,4 +1,4 @@
-import { extractWakeCommand } from './voice-command.js'
+import { extractDirectCommand, extractWakeCommand } from './voice-command.js'
 
 const RESTART_DEBOUNCE_MS = 350
 const RESTART_BACKOFF_MS = 1200
@@ -61,7 +61,12 @@ export function createVoiceListener({
       safelyStopRecognition()
       recognition = null
       reportError(err?.message || 'start-failed', err)
-      if (active) setTimeout(spinUpRecognition, RESTART_BACKOFF_MS)
+      if (active) {
+        setTimeout(() => {
+          if (!active) return
+          spinUpRecognition()
+        }, RESTART_BACKOFF_MS)
+      }
     }
   }
 
@@ -91,11 +96,18 @@ export function createVoiceListener({
   }
 
   function processTranscript(transcript) {
-    const command = extractWakeCommand(transcript, wakeWords ? { wakeWords } : undefined)
+    const trimmed = typeof transcript === 'string' ? transcript.trim() : ''
+    let command = extractWakeCommand(trimmed, wakeWords ? { wakeWords } : undefined)
 
     if (command === null) {
-      emitState({ state: 'heard', text: transcript.trim() })
-      return
+      // Chrome STT often drops short leading words like "claude". Accept a
+      // bare command if it starts with a recognised action verb; the matcher
+      // still requires a real label so casual conversation can't trigger it.
+      command = extractDirectCommand(trimmed)
+      if (command === null) {
+        emitState({ state: 'heard', text: trimmed })
+        return
+      }
     }
 
     if (command === '') {
@@ -103,7 +115,7 @@ export function createVoiceListener({
       return
     }
 
-    emitState({ state: 'armed', text: command })
+    emitState({ state: 'processing', text: command })
     Promise
       .resolve(onCommand?.(command))
       .catch(err => reportError(err?.message || 'on-command-failed', err))

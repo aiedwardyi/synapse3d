@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { extractWakeCommand, matchNoteCommand } from '../src/voice-command.js'
+import {
+  extractDirectCommand,
+  extractWakeCommand,
+  matchNoteCommand
+} from '../src/voice-command.js'
 
 test('extractWakeCommand returns text after wake word', () => {
   assert.equal(extractWakeCommand('claude open alpha'), 'open alpha')
@@ -161,4 +165,25 @@ test('matchNoteCommand handles empty or missing node list', () => {
   assert.equal(matchNoteCommand('alpha', []), null)
   assert.equal(matchNoteCommand('alpha', null), null)
   assert.equal(matchNoteCommand('alpha', undefined), null)
+})
+
+test('extractDirectCommand accepts transcripts that start with a command verb', () => {
+  assert.equal(extractDirectCommand('open alpha'), 'open alpha')
+  assert.equal(extractDirectCommand('READ Alpha'), 'read alpha')
+  assert.equal(extractDirectCommand('show alpha'), 'show alpha')
+  assert.equal(extractDirectCommand('show me alpha'), 'show me alpha')
+  assert.equal(extractDirectCommand('go to alpha'), 'go to alpha')
+})
+
+test('extractDirectCommand returns null for verb-only transcripts', () => {
+  assert.equal(extractDirectCommand('open'), null)
+  assert.equal(extractDirectCommand('show me'), null)
+  assert.equal(extractDirectCommand('go to'), null)
+})
+
+test('extractDirectCommand returns null for non-command transcripts', () => {
+  assert.equal(extractDirectCommand('hello there'), null)
+  assert.equal(extractDirectCommand('thats interesting'), null)
+  assert.equal(extractDirectCommand(''), null)
+  assert.equal(extractDirectCommand(undefined), null)
 })

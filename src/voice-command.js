@@ -1,5 +1,17 @@
-const DEFAULT_WAKE_WORDS = ['claude', 'claud', 'cloud', 'clod']
+const DEFAULT_WAKE_WORDS = ['claude', 'claud', 'cloud', 'clod', 'code', 'crowd', 'clyde']
 const COMMAND_PREFIXES = ['show me', 'go to', 'open', 'read', 'show']
+
+export function extractDirectCommand(transcript) {
+  const normalized = normalizeText(transcript)
+  if (!normalized) return null
+
+  const sorted = [...COMMAND_PREFIXES].sort((a, b) => b.length - a.length)
+  for (const prefix of sorted) {
+    if (normalized === prefix) return null
+    if (normalized.startsWith(`${prefix} `)) return normalized
+  }
+  return null
+}
 
 export function extractWakeCommand(transcript, { wakeWords = DEFAULT_WAKE_WORDS } = {}) {
   const normalized = normalizeText(transcript)

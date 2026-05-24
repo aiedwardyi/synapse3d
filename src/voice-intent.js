@@ -39,7 +39,13 @@ function buildCandidates(nodes) {
     const label = typeof node.label === 'string' && node.label.trim() ? node.label : id
     candidates.push({ id, label, originalId: node.id })
 
-    if (candidates.length >= MAX_CANDIDATES) break
+    if (candidates.length >= MAX_CANDIDATES) {
+      console.warn(
+        `voice-intent: vault has more than ${MAX_CANDIDATES} nodes; ` +
+        'only the first batch is sent for intent resolution'
+      )
+      break
+    }
   }
 
   return candidates

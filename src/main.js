@@ -113,6 +113,9 @@ let gestureLegend = null
 let voiceListener = null
 let voiceStatusElement = null
 let latestVoiceCommandSeq = 0
+let voiceStatusRevertTimer = null
+
+const VOICE_TRANSIENT_REVERT_MS = 2400
 let currentSelection = null
 let currentHover = null
 let currentGraphData = { nodes: [], links: [] }
@@ -463,19 +466,22 @@ async function handleVoiceCommand(command) {
       } catch (err) {
         console.warn('voice intent failed:', err)
       }
-      if (seq !== latestVoiceCommandSeq) return
     }
   }
+
+  // Guard against a newer command landing while resolution was in flight.
+  if (seq !== latestVoiceCommandSeq) return
 
   if (resolvedNodeId == null) {
     renderVoiceStatus({ state: 'unmatched', text: trimmed })
     return
   }
 
+  const node = getGraphNode(resolvedNodeId)
   const opened = noteReader?.openNote(resolvedNodeId)
   if (opened) {
-    const node = getGraphNode(resolvedNodeId)
     if (node) selectGraphNode(node)
+    renderVoiceStatus({ state: 'opened', text: node?.label || String(resolvedNodeId) })
   } else {
     renderVoiceStatus({ state: 'unmatched', text: trimmed })
   }
@@ -483,6 +489,11 @@ async function handleVoiceCommand(command) {
 
 function renderVoiceStatus(state) {
   if (!voiceStatusElement) return
+
+  if (voiceStatusRevertTimer) {
+    clearTimeout(voiceStatusRevertTimer)
+    voiceStatusRevertTimer = null
+  }
 
   const stateName = state?.state || 'idle'
   if (stateName === 'idle') {
@@ -496,14 +507,22 @@ function renderVoiceStatus(state) {
 
   const { kicker, body } = voiceStatusCopy(stateName, state?.text)
   paintVoiceStatus(voiceStatusElement, stateName, kicker, body)
+
+  if (stateName === 'opened' || stateName === 'unmatched') {
+    voiceStatusRevertTimer = setTimeout(() => {
+      voiceStatusRevertTimer = null
+      renderVoiceStatus(
+        voiceListener?.isListening() ? { state: 'listening' } : { state: 'idle' }
+      )
+    }, VOICE_TRANSIENT_REVERT_MS)
+  }
 }
 
 function voiceStatusCopy(stateName, text) {
   if (stateName === 'listening') return { kicker: 'VOICE', body: 'LISTENING' }
-  if (stateName === 'armed') {
-    if (text) return { kicker: 'HEARD', body: text }
-    return { kicker: 'VOICE', body: 'WAKE WORD' }
-  }
+  if (stateName === 'armed') return { kicker: 'CLAUDE', body: 'WAKE WORD' }
+  if (stateName === 'processing') return { kicker: 'COMMAND', body: text || '' }
+  if (stateName === 'opened') return { kicker: 'OPENED', body: text || '' }
   if (stateName === 'unmatched') return { kicker: 'NO MATCH', body: text || '' }
   return { kicker: 'HEARD', body: text || '' }
 }
