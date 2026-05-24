@@ -85,6 +85,7 @@ export function createVoiceListener({
   }
 
   function handleResult(event) {
+    if (!active) return
     const results = event?.results
     if (!results) return
 
