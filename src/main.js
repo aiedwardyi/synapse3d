@@ -646,6 +646,8 @@ function dispatchDirectVoiceCommand({ action, arg }, commandText) {
     }
     return
   }
+
+  console.warn('dispatchDirectVoiceCommand: unhandled action', action)
 }
 
 function isConversationContextValid(commandSeq, conversationSeq) {
