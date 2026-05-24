@@ -25,6 +25,9 @@ import { createGestureLegend } from './gesture-legend.js'
 import { hasSeenLegend, markLegendSeen } from './gesture-legend-storage.js'
 import { linkDirectionalParticlesForGestureState } from './gesture-particles.js'
 import { hoverNodeLabel, resolveHoverTarget } from './hover-target.js'
+import { createVoiceListener } from './voice.js'
+import { matchNoteCommand } from './voice-command.js'
+import { resolveNoteByIntent } from './voice-intent.js'
 import {
   createIncidentLinkMap,
   finiteGraphCoord,
@@ -107,6 +110,8 @@ let selectionPanel = null
 let noteReader = null
 let gestureHud = null
 let gestureLegend = null
+let voiceListener = null
+let voiceStatusElement = null
 let currentSelection = null
 let currentHover = null
 let currentGraphData = { nodes: [], links: [] }
@@ -439,6 +444,88 @@ function getGraphNeighbors(nodeId) {
 function updateGestureState(gestureState) {
   gestureHud?.update(gestureState)
   updateLinkParticlesForGestureState(gestureState)
+}
+
+async function handleVoiceCommand(command) {
+  const trimmed = typeof command === 'string' ? command.trim() : ''
+  if (!trimmed) return
+
+  const nodes = currentGraphData.nodes || []
+  let resolvedNodeId = matchNoteCommand(trimmed, nodes)?.nodeId || null
+
+  if (!resolvedNodeId) {
+    const apiKey = import.meta.env?.VITE_ANTHROPIC_API_KEY
+    if (apiKey) {
+      try {
+        resolvedNodeId = await resolveNoteByIntent(trimmed, nodes, { apiKey })
+      } catch (err) {
+        console.warn('voice intent failed:', err)
+      }
+    }
+  }
+
+  if (!resolvedNodeId) return
+
+  const opened = noteReader?.openNote(resolvedNodeId)
+  if (opened) {
+    const node = getGraphNode(resolvedNodeId)
+    if (node) selectGraphNode(node)
+  }
+}
+
+function renderVoiceStatus(state) {
+  if (!voiceStatusElement) return
+
+  const stateName = state?.state || 'idle'
+  if (stateName === 'idle') {
+    voiceStatusElement.hidden = true
+    voiceStatusElement.removeAttribute('data-state')
+    while (voiceStatusElement.firstChild) {
+      voiceStatusElement.removeChild(voiceStatusElement.firstChild)
+    }
+    return
+  }
+
+  const { kicker, body } = voiceStatusCopy(stateName, state?.text)
+  paintVoiceStatus(voiceStatusElement, stateName, kicker, body)
+}
+
+function voiceStatusCopy(stateName, text) {
+  if (stateName === 'listening') return { kicker: 'VOICE', body: 'LISTENING' }
+  if (stateName === 'armed') {
+    if (text) return { kicker: 'HEARD', body: text }
+    return { kicker: 'VOICE', body: 'WAKE WORD' }
+  }
+  return { kicker: 'HEARD', body: text || '' }
+}
+
+function paintVoiceStatus(element, stateName, kicker, body) {
+  while (element.firstChild) {
+    element.removeChild(element.firstChild)
+  }
+
+  const dot = document.createElement('span')
+  dot.className = 'voice-status-dot'
+  element.appendChild(dot)
+
+  const copy = document.createElement('div')
+  copy.className = 'voice-status-copy'
+
+  const kickerEl = document.createElement('div')
+  kickerEl.className = 'voice-status-kicker'
+  kickerEl.textContent = kicker
+  copy.appendChild(kickerEl)
+
+  if (body) {
+    const bodyEl = document.createElement('div')
+    bodyEl.className = 'voice-status-text'
+    bodyEl.textContent = body
+    copy.appendChild(bodyEl)
+  }
+
+  element.appendChild(copy)
+  element.setAttribute('data-state', stateName)
+  element.hidden = false
 }
 
 function updateLinkParticlesForGestureState(gestureState) {
@@ -792,6 +879,24 @@ function createNodeHoverLabelElement(documentRef) {
   return element
 }
 
+function initVoiceListener() {
+  voiceStatusElement = document.getElementById('voice-status')
+  voiceListener = createVoiceListener({
+    onCommand: handleVoiceCommand,
+    onError: err => console.warn('voice listener error:', err),
+    onStateChange: renderVoiceStatus
+  })
+
+  if (!voiceListener.isSupported() || !voiceStatusElement) {
+    if (voiceStatusElement) voiceStatusElement.hidden = true
+    return
+  }
+
+  trackingButton?.addEventListener('click', () => {
+    voiceListener?.start()
+  })
+}
+
 function initEscapeHandling(gestureLegendElement) {
   window.addEventListener('keydown', event => {
     if (event.key !== 'Escape') return
@@ -838,6 +943,7 @@ async function init() {
   })
   updateGestureState('idle')
   initEscapeHandling(gestureLegendElement)
+  initVoiceListener()
 
   syncOverlayCanvasSize(handCanvas)
   window.addEventListener('resize', () => {
