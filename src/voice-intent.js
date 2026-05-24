@@ -27,17 +27,13 @@ export async function resolveNoteByIntent(command, nodes, { apiKey } = {}) {
 
 function buildCandidates(nodes) {
   if (!Array.isArray(nodes)) return []
-  const seen = new Set()
+  const seenOriginals = new Set()
+  const stringIdsInUse = new Set()
   const candidates = []
 
   for (const node of nodes) {
     if (!node || node.missing || node.id == null) continue
-    const id = String(node.id)
-    if (seen.has(id)) continue
-    seen.add(id)
-
-    const label = typeof node.label === 'string' && node.label.trim() ? node.label : id
-    candidates.push({ id, label, originalId: node.id })
+    if (seenOriginals.has(node.id)) continue
 
     if (candidates.length >= MAX_CANDIDATES) {
       console.warn(
@@ -46,6 +42,21 @@ function buildCandidates(nodes) {
       )
       break
     }
+
+    seenOriginals.add(node.id)
+
+    // Mixed-type ids (e.g. 1 and '1') would collapse on String() alone;
+    // suffix collisions so both stay distinct in the tool enum.
+    let id = String(node.id)
+    if (stringIdsInUse.has(id)) {
+      let suffix = 2
+      while (stringIdsInUse.has(`${id}__${suffix}`)) suffix++
+      id = `${id}__${suffix}`
+    }
+    stringIdsInUse.add(id)
+
+    const label = typeof node.label === 'string' && node.label.trim() ? node.label : String(node.id)
+    candidates.push({ id, label, originalId: node.id })
   }
 
   return candidates

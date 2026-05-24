@@ -48,16 +48,26 @@ export function createVoiceListener({
   }
 
   function spinUpRecognition() {
-    recognition = new RecognitionImpl()
-    recognition.continuous = true
-    recognition.interimResults = false
-    recognition.lang = 'en-US'
-    recognition.onresult = handleResult
-    recognition.onerror = handleError
-    recognition.onend = handleEnd
+    const instance = new RecognitionImpl()
+    recognition = instance
+    instance.continuous = true
+    instance.interimResults = false
+    instance.lang = 'en-US'
+    instance.onresult = event => {
+      if (recognition !== instance) return
+      handleResult(event)
+    }
+    instance.onerror = event => {
+      if (recognition !== instance) return
+      handleError(event)
+    }
+    instance.onend = () => {
+      if (recognition !== instance) return
+      handleEnd()
+    }
 
     try {
-      recognition.start()
+      instance.start()
     } catch (err) {
       // Chrome throws InvalidStateError if the prior recognition is still tearing down.
       // Retry on a backoff rather than killing the listener.

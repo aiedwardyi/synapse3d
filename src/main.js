@@ -470,8 +470,10 @@ async function handleVoiceCommand(command) {
     }
   }
 
-  // Guard against a newer command landing while resolution was in flight.
+  // Guard against a newer command landing while resolution was in flight,
+  // or the user toggling Voice OFF before the async path finished.
   if (seq !== latestVoiceCommandSeq) return
+  if (voiceListener && !voiceListener.isListening()) return
 
   if (resolvedNodeId == null) {
     renderVoiceStatus({ state: 'unmatched', text: trimmed })
@@ -503,6 +505,7 @@ function renderVoiceStatus(state) {
     while (voiceStatusElement.firstChild) {
       voiceStatusElement.removeChild(voiceStatusElement.firstChild)
     }
+    syncVoiceToggleLabel()
     return
   }
 
