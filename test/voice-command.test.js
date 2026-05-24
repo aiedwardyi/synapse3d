@@ -3,7 +3,8 @@ import { test } from 'node:test'
 import {
   extractDirectCommand,
   extractWakeCommand,
-  matchNoteCommand
+  matchNoteCommand,
+  parseVoiceCommand
 } from '../src/voice-command.js'
 
 test('extractWakeCommand returns text after wake word', () => {
@@ -211,4 +212,78 @@ test('extractDirectCommand returns null for non-command transcripts', () => {
   assert.equal(extractDirectCommand('thats interesting'), null)
   assert.equal(extractDirectCommand(''), null)
   assert.equal(extractDirectCommand(undefined), null)
+})
+
+test('parseVoiceCommand recognises close', () => {
+  assert.deepEqual(parseVoiceCommand('close'), { action: 'close' })
+  assert.deepEqual(parseVoiceCommand('Close.'), { action: 'close' })
+  assert.deepEqual(parseVoiceCommand('close note'), { action: 'close' })
+  assert.deepEqual(parseVoiceCommand('close reader'), { action: 'close' })
+})
+
+test('parseVoiceCommand recognises next', () => {
+  assert.deepEqual(parseVoiceCommand('next'), { action: 'next' })
+  assert.deepEqual(parseVoiceCommand('next note'), { action: 'next' })
+  assert.deepEqual(parseVoiceCommand('Next, link.'), { action: 'next' })
+})
+
+test('parseVoiceCommand recognises back/prev/previous', () => {
+  assert.deepEqual(parseVoiceCommand('back'), { action: 'prev' })
+  assert.deepEqual(parseVoiceCommand('prev'), { action: 'prev' })
+  assert.deepEqual(parseVoiceCommand('previous'), { action: 'prev' })
+  assert.deepEqual(parseVoiceCommand('go back'), { action: 'prev' })
+  assert.deepEqual(parseVoiceCommand('previous note'), { action: 'prev' })
+})
+
+test('parseVoiceCommand recognises select <name>', () => {
+  assert.deepEqual(parseVoiceCommand('select alpha'), { action: 'select', arg: 'alpha' })
+  assert.deepEqual(parseVoiceCommand('Select Alpha Notes'), { action: 'select', arg: 'alpha notes' })
+})
+
+test('parseVoiceCommand returns null for bare select with no argument', () => {
+  assert.equal(parseVoiceCommand('select'), null)
+  assert.equal(parseVoiceCommand('select '), null)
+})
+
+test('parseVoiceCommand recognises clear', () => {
+  assert.deepEqual(parseVoiceCommand('clear'), { action: 'clear' })
+  assert.deepEqual(parseVoiceCommand('clear selection'), { action: 'clear' })
+  assert.deepEqual(parseVoiceCommand('deselect'), { action: 'clear' })
+})
+
+test('parseVoiceCommand recognises recenter via center/reset/recenter', () => {
+  assert.deepEqual(parseVoiceCommand('center'), { action: 'recenter' })
+  assert.deepEqual(parseVoiceCommand('reset'), { action: 'recenter' })
+  assert.deepEqual(parseVoiceCommand('recenter'), { action: 'recenter' })
+  assert.deepEqual(parseVoiceCommand('reset view'), { action: 'recenter' })
+  assert.deepEqual(parseVoiceCommand('reset camera'), { action: 'recenter' })
+})
+
+test('parseVoiceCommand recognises zoom in and zoom out', () => {
+  assert.deepEqual(parseVoiceCommand('zoom in'), { action: 'zoom', arg: 'in' })
+  assert.deepEqual(parseVoiceCommand('zoom out'), { action: 'zoom', arg: 'out' })
+})
+
+test('parseVoiceCommand recognises rotate directions', () => {
+  assert.deepEqual(parseVoiceCommand('rotate left'), { action: 'rotate', arg: 'left' })
+  assert.deepEqual(parseVoiceCommand('rotate right'), { action: 'rotate', arg: 'right' })
+  assert.deepEqual(parseVoiceCommand('rotate up'), { action: 'rotate', arg: 'up' })
+  assert.deepEqual(parseVoiceCommand('rotate down'), { action: 'rotate', arg: 'down' })
+})
+
+test('parseVoiceCommand returns null for unknown commands', () => {
+  assert.equal(parseVoiceCommand('open alpha'), null)
+  assert.equal(parseVoiceCommand('show me alpha'), null)
+  assert.equal(parseVoiceCommand('hello there'), null)
+  assert.equal(parseVoiceCommand('zoom'), null)
+  assert.equal(parseVoiceCommand('rotate'), null)
+  assert.equal(parseVoiceCommand('rotate sideways'), null)
+})
+
+test('parseVoiceCommand returns null for empty or non-string input', () => {
+  assert.equal(parseVoiceCommand(''), null)
+  assert.equal(parseVoiceCommand('   '), null)
+  assert.equal(parseVoiceCommand(null), null)
+  assert.equal(parseVoiceCommand(undefined), null)
+  assert.equal(parseVoiceCommand(42), null)
 })

@@ -1,6 +1,44 @@
 const DEFAULT_WAKE_WORDS = ['claude', 'claud', 'cloud', 'clod', 'clyde', 'clan']
 export const COMMAND_PREFIXES = ['show me', 'go to', 'open', 'read', 'show']
 
+const CLOSE_COMMANDS = new Set(['close', 'close note', 'close reader'])
+const NEXT_COMMANDS = new Set(['next', 'next note', 'next link'])
+const PREV_COMMANDS = new Set(['back', 'prev', 'previous', 'back note', 'previous note', 'go back'])
+const CLEAR_COMMANDS = new Set(['clear', 'clear selection', 'deselect'])
+const RECENTER_COMMANDS = new Set(['center', 'reset', 'recenter', 'reset view', 'reset camera'])
+const ZOOM_DIRECTIONS = { 'zoom in': 'in', 'zoom out': 'out' }
+const ROTATE_DIRECTIONS = {
+  'rotate left': 'left',
+  'rotate right': 'right',
+  'rotate up': 'up',
+  'rotate down': 'down'
+}
+
+export function parseVoiceCommand(command) {
+  const normalized = normalizeText(command)
+  if (!normalized) return null
+
+  if (CLOSE_COMMANDS.has(normalized)) return { action: 'close' }
+  if (NEXT_COMMANDS.has(normalized)) return { action: 'next' }
+  if (PREV_COMMANDS.has(normalized)) return { action: 'prev' }
+  if (CLEAR_COMMANDS.has(normalized)) return { action: 'clear' }
+  if (RECENTER_COMMANDS.has(normalized)) return { action: 'recenter' }
+
+  if (normalized in ZOOM_DIRECTIONS) {
+    return { action: 'zoom', arg: ZOOM_DIRECTIONS[normalized] }
+  }
+  if (normalized in ROTATE_DIRECTIONS) {
+    return { action: 'rotate', arg: ROTATE_DIRECTIONS[normalized] }
+  }
+
+  if (normalized.startsWith('select ')) {
+    const arg = normalized.slice('select '.length).trim()
+    if (arg) return { action: 'select', arg }
+  }
+
+  return null
+}
+
 export function extractDirectCommand(transcript) {
   const normalized = normalizeText(transcript)
   if (!normalized) return null

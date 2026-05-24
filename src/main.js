@@ -26,8 +26,9 @@ import { hasSeenLegend, markLegendSeen } from './gesture-legend-storage.js'
 import { linkDirectionalParticlesForGestureState } from './gesture-particles.js'
 import { hoverNodeLabel, resolveHoverTarget } from './hover-target.js'
 import { createVoiceListener } from './voice.js'
-import { matchNoteCommand } from './voice-command.js'
+import { matchNoteCommand, parseVoiceCommand } from './voice-command.js'
 import { callIntent, encodeSearchCandidates } from './voice-intent.js'
+import { orbitStep, recenter, zoomStep } from './camera-commands.js'
 import {
   startConversation,
   applyResponse,
@@ -472,6 +473,15 @@ async function handleVoiceCommand(command) {
 
   cancelActiveConversation()
 
+  const direct = parseVoiceCommand(trimmed)
+  if (direct) {
+    if (seq !== latestVoiceCommandSeq) return
+    if (versionAtStart !== currentGraphVersion) return
+    if (voiceListener && !voiceListener.isListening()) return
+    dispatchDirectVoiceCommand(direct, trimmed)
+    return
+  }
+
   const nodes = currentGraphData.nodes || []
   const directNodeId = matchNoteCommand(trimmed, nodes)?.nodeId ?? null
   if (directNodeId != null) {
@@ -585,6 +595,55 @@ function openResolvedNode(nodeId, fallbackText) {
   }
 }
 
+function dispatchDirectVoiceCommand({ action, arg }, commandText) {
+  if (action === 'close') {
+    noteReader?.close()
+    renderVoiceStatus({ state: 'done', text: 'close' })
+    return
+  }
+  if (action === 'next') {
+    noteReader?.next()
+    renderVoiceStatus({ state: 'done', text: 'next' })
+    return
+  }
+  if (action === 'prev') {
+    noteReader?.prev()
+    renderVoiceStatus({ state: 'done', text: 'previous' })
+    return
+  }
+  if (action === 'clear') {
+    clearSelection()
+    renderVoiceStatus({ state: 'done', text: 'clear' })
+    return
+  }
+  if (action === 'recenter') {
+    recenter(graph)
+    renderVoiceStatus({ state: 'done', text: 'recenter' })
+    return
+  }
+  if (action === 'zoom') {
+    zoomStep(graph, arg)
+    renderVoiceStatus({ state: 'done', text: `zoom ${arg}` })
+    return
+  }
+  if (action === 'rotate') {
+    orbitStep(graph, arg)
+    renderVoiceStatus({ state: 'done', text: `rotate ${arg}` })
+    return
+  }
+  if (action === 'select') {
+    const nodes = currentGraphData.nodes || []
+    const match = matchNoteCommand(arg, nodes)
+    const node = match ? getGraphNode(match.nodeId) : null
+    if (node) {
+      selectGraphNode(node)
+      renderVoiceStatus({ state: 'done', text: `select ${node.label || node.id}` })
+    } else {
+      renderVoiceStatus({ state: 'unmatched', text: commandText })
+    }
+  }
+}
+
 function isConversationContextValid(commandSeq, conversationSeq) {
   if (commandSeq !== latestVoiceCommandSeq) return false
   if (conversationSeq !== activeVoiceConversationSeq) return false
@@ -667,7 +726,7 @@ function renderVoiceStatus(state) {
   const { kicker, body } = voiceStatusCopy(stateName, state?.text)
   paintVoiceStatus(voiceStatusElement, stateName, kicker, body)
 
-  if (stateName === 'opened' || stateName === 'unmatched') {
+  if (stateName === 'opened' || stateName === 'done' || stateName === 'unmatched') {
     voiceStatusRevertTimer = setTimeout(() => {
       voiceStatusRevertTimer = null
       renderVoiceStatus(
@@ -728,6 +787,7 @@ function voiceStatusCopy(stateName, text) {
   if (stateName === 'armed') return { kicker: 'CLAUDE', body: 'WAKE WORD' }
   if (stateName === 'processing') return { kicker: 'COMMAND', body: text || '' }
   if (stateName === 'opened') return { kicker: 'OPENED', body: text || '' }
+  if (stateName === 'done') return { kicker: 'DONE', body: text || '' }
   if (stateName === 'unmatched') return { kicker: 'NO MATCH', body: text || '' }
   return { kicker: 'HEARD', body: text || '' }
 }

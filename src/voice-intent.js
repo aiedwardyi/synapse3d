@@ -17,10 +17,37 @@ const SYSTEM_PROMPT = [
   'When no candidate plausibly fits, do not call any tool.'
 ].join(' ')
 
+const CANDIDATES_BOUNDARY = '\n\nCandidate notes:\n'
+
 export function encodeSearchCandidates(command, nodes) {
   if (typeof command !== 'string' || !command.trim()) return []
   const searchResults = searchNotes(command, nodes, { limit: SEARCH_LIMIT })
   return encodeCandidates(searchResults)
+}
+
+// Move the candidate list into its own content block carrying a cache_control
+// breakpoint. The candidates + tools stay constant across clarification rounds,
+// so subsequent calls in the same conversation hit the cache.
+export function withCandidateCacheBreakpoint(messages) {
+  if (!Array.isArray(messages) || messages.length === 0) return messages
+  const first = messages[0]
+  if (typeof first?.content !== 'string') return messages
+
+  const idx = first.content.indexOf(CANDIDATES_BOUNDARY)
+  if (idx === -1) return messages
+
+  const requestText = first.content.slice(0, idx)
+  const candidatesText = first.content.slice(idx + 2)
+
+  const transformedFirst = {
+    role: first.role,
+    content: [
+      { type: 'text', text: requestText },
+      { type: 'text', text: candidatesText, cache_control: { type: 'ephemeral' } }
+    ]
+  }
+
+  return [transformedFirst, ...messages.slice(1)]
 }
 
 export async function callIntent({ messages, candidates }, { apiKey } = {}) {
@@ -66,7 +93,7 @@ async function sendMessagesRequest({ messages, candidates, apiKey }) {
     max_tokens: MAX_TOKENS,
     system: SYSTEM_PROMPT,
     tool_choice: { type: 'auto' },
-    messages,
+    messages: withCandidateCacheBreakpoint(messages),
     tools: [
       {
         name: OPEN_TOOL_NAME,
@@ -108,7 +135,8 @@ async function sendMessagesRequest({ messages, candidates, apiKey }) {
             }
           },
           required: ['question', 'options']
-        }
+        },
+        cache_control: { type: 'ephemeral' }
       }
     ]
   }
