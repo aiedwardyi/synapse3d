@@ -495,12 +495,11 @@ async function handleVoiceCommand(command) {
   }
 
   const conversationSeq = ++activeVoiceConversationSeq
-  let conversation = startConversation({
+  activeVoiceConversation = startConversation({
     command: trimmed,
     candidates,
     graphVersion: versionAtStart
   })
-  activeVoiceConversation = conversation
 
   await driveConversation({
     seq,
@@ -607,6 +606,7 @@ async function handleVoiceAnswer(answerText) {
   const state = activeVoiceConversation
   if (!state || state.phase !== 'pending_user') return
 
+  const seq = latestVoiceCommandSeq
   const conversationSeq = activeVoiceConversationSeq
   const trimmed = typeof answerText === 'string' ? answerText.trim() : ''
   if (!trimmed) return
@@ -628,7 +628,7 @@ async function handleVoiceAnswer(answerText) {
       return
     }
     await driveConversation({
-      seq: latestVoiceCommandSeq,
+      seq,
       conversationSeq,
       apiKey
     })

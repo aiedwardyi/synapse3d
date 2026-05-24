@@ -224,14 +224,34 @@ test('isStale detects graph version changes in either direction', () => {
 })
 
 test('abort transitions to aborted with the given reason (e.g. timeout)', () => {
-  let state = startConversation({ command: 'x', candidates: [C_RECENT], graphVersion: 1 })
+  let state = startConversation({ command: 'x', candidates: [C_RECENT, C_OLDER], graphVersion: 1 })
   state = applyResponse(state, askResponse('t', [
-    { nodeId: 'precision', label: 'A' }
+    { nodeId: 'precision', label: 'A' },
+    { nodeId: 'optimizer', label: 'B' }
   ]))
   state = abort(state, 'timeout')
 
   assert.equal(state.phase, 'aborted')
   assert.equal(state.reason, 'timeout')
+})
+
+test('applyResponse rejects ask payloads with fewer than 2 or more than 3 options', () => {
+  let baseState = startConversation({ command: 'x', candidates: [C_RECENT, C_OLDER], graphVersion: 1 })
+
+  const oneOption = applyResponse(baseState, askResponse('t', [
+    { nodeId: 'precision', label: 'A' }
+  ]))
+  assert.equal(oneOption.phase, 'aborted')
+  assert.equal(oneOption.reason, 'no_match')
+
+  const fourOptions = applyResponse(baseState, askResponse('t', [
+    { nodeId: 'a', label: 'A' },
+    { nodeId: 'b', label: 'B' },
+    { nodeId: 'c', label: 'C' },
+    { nodeId: 'd', label: 'D' }
+  ]))
+  assert.equal(fourOptions.phase, 'aborted')
+  assert.equal(fourOptions.reason, 'no_match')
 })
 
 test('applyAnswer is a no-op when not in pending_user phase', () => {

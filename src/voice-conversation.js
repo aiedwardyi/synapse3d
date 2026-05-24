@@ -47,7 +47,8 @@ export function applyResponse(state, response) {
     response.type === 'ask' &&
     response.toolUseId &&
     Array.isArray(response.options) &&
-    response.options.length > 0
+    response.options.length >= 2 &&
+    response.options.length <= 3
   ) {
     return {
       ...state,
