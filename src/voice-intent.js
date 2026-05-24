@@ -3,31 +3,35 @@ import { searchNotes } from './voice-search.js'
 const ENDPOINT = 'https://api.anthropic.com/v1/messages'
 const MODEL = 'claude-sonnet-4-6'
 const ANTHROPIC_VERSION = '2023-06-01'
-const TOOL_NAME = 'open_note'
-const MAX_TOKENS = 256
+const OPEN_TOOL_NAME = 'open_note'
+const ASK_TOOL_NAME = 'ask_clarification'
+const MAX_TOKENS = 512
 const SEARCH_LIMIT = 8
 const REQUEST_TIMEOUT_MS = 8000
 const SYSTEM_PROMPT = [
   'You help a user navigate a small knowledge graph by voice.',
   'You receive the spoken request and a JSON list of candidate notes: id, label, snippet (excerpt of the note body), and modified (file last-modified time as epoch milliseconds; larger = more recent).',
-  'Call the open_note tool only when one candidate is clearly the best match for the request based on its label or snippet. Do not call the tool for weak or incidental matches.',
-  'If two or more candidates fit equally well, pick the one that was most recently modified (the candidate with the highest modified value). This is a tie-breaker by recency, not by file size.',
-  'If no candidate clearly fits the request, do not call the tool.'
+  'When one candidate is clearly the best match for the request based on its label or snippet, call open_note with that candidate id.',
+  'When two or three candidates plausibly match and a short follow-up question would let the user pick, call ask_clarification with a brief question and a small list of those candidates as options (each option is { nodeId, label }). Limit options to at most three of the strongest candidates and phrase the question naturally.',
+  'When candidates tie purely on recency, prefer the most recently modified one and call open_note directly instead of asking.',
+  'When no candidate plausibly fits, do not call any tool.'
 ].join(' ')
 
-export async function resolveNoteByIntent(command, nodes, { apiKey } = {}) {
-  if (typeof command !== 'string' || !command.trim()) return null
+export function encodeSearchCandidates(command, nodes) {
+  if (typeof command !== 'string' || !command.trim()) return []
+  const searchResults = searchNotes(command, nodes, { limit: SEARCH_LIMIT })
+  return encodeCandidates(searchResults)
+}
+
+export async function callIntent({ messages, candidates }, { apiKey } = {}) {
+  if (!Array.isArray(messages) || messages.length === 0) return null
+  if (!Array.isArray(candidates) || candidates.length === 0) return null
   if (typeof apiKey !== 'string' || !apiKey) return null
 
-  const searchResults = searchNotes(command, nodes, { limit: SEARCH_LIMIT })
-  if (searchResults.length === 0) return null
-
-  const candidates = encodeCandidates(searchResults)
-
-  const response = await sendMessagesRequest(command.trim(), candidates, apiKey)
+  const response = await sendMessagesRequest({ messages, candidates, apiKey })
   if (!response) return null
 
-  return pickToolUseNodeId(response, candidates)
+  return normalizeResponse(response, candidates)
 }
 
 function encodeCandidates(searchResults) {
@@ -35,8 +39,6 @@ function encodeCandidates(searchResults) {
   const candidates = []
 
   for (const result of searchResults) {
-    // Mixed-type ids (e.g. 1 and '1') would collapse on String() alone;
-    // suffix collisions so both stay distinct in the tool enum.
     let id = String(result.id)
     if (stringIdsInUse.has(id)) {
       let suffix = 2
@@ -57,35 +59,58 @@ function encodeCandidates(searchResults) {
   return candidates
 }
 
-async function sendMessagesRequest(command, candidates, apiKey) {
-  const ids = candidates.map(candidate => candidate.id)
-  const promptCandidates = candidates.map(({ id, label, snippet, modified }) => ({
-    id, label, snippet, modified
-  }))
+async function sendMessagesRequest({ messages, candidates, apiKey }) {
+  const ids = candidates.map(c => c.id)
   const body = {
     model: MODEL,
     max_tokens: MAX_TOKENS,
     system: SYSTEM_PROMPT,
     tool_choice: { type: 'auto' },
-    messages: [{
-      role: 'user',
-      content: `Request: ${command}\n\nCandidate notes:\n${JSON.stringify(promptCandidates, null, 2)}`
-    }],
-    tools: [{
-      name: TOOL_NAME,
-      description: 'Open the candidate note that best matches the spoken request.',
-      input_schema: {
-        type: 'object',
-        properties: {
-          nodeId: {
-            type: 'string',
-            enum: ids,
-            description: 'The id of the candidate note to open.'
-          }
-        },
-        required: ['nodeId']
+    messages,
+    tools: [
+      {
+        name: OPEN_TOOL_NAME,
+        description: 'Open the candidate note that best matches the request.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            nodeId: {
+              type: 'string',
+              enum: ids,
+              description: 'The id of the candidate note to open.'
+            }
+          },
+          required: ['nodeId']
+        }
+      },
+      {
+        name: ASK_TOOL_NAME,
+        description: 'Ask the user a short follow-up question when two or three candidates plausibly match.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            question: {
+              type: 'string',
+              description: 'A brief spoken question to disambiguate. Plain text, no markup.'
+            },
+            options: {
+              type: 'array',
+              minItems: 2,
+              maxItems: 3,
+              items: {
+                type: 'object',
+                properties: {
+                  nodeId: { type: 'string', enum: ids },
+                  label: { type: 'string' }
+                },
+                required: ['nodeId', 'label']
+              }
+            }
+          },
+          required: ['question', 'options']
+        }
       }
-    }]
+    ]
   }
 
   const controller = new AbortController()
@@ -128,15 +153,52 @@ async function sendMessagesRequest(command, candidates, apiKey) {
   }
 }
 
-function pickToolUseNodeId(response, candidates) {
+function normalizeResponse(response, candidates) {
   const blocks = Array.isArray(response?.content) ? response.content : []
-  const byStringId = new Map(candidates.map(candidate => [candidate.id, candidate.originalId]))
+  const byEncodedId = new Map(candidates.map(c => [c.id, c]))
 
   for (const block of blocks) {
-    if (block?.type !== 'tool_use' || block.name !== TOOL_NAME) continue
-    const nodeId = block.input?.nodeId
-    if (typeof nodeId === 'string' && byStringId.has(nodeId)) {
-      return byStringId.get(nodeId)
+    if (block?.type !== 'tool_use') continue
+
+    if (block.name === OPEN_TOOL_NAME) {
+      const nodeId = block.input?.nodeId
+      if (typeof nodeId === 'string' && byEncodedId.has(nodeId)) {
+        return {
+          type: 'open',
+          nodeId: byEncodedId.get(nodeId).originalId,
+          assistantBlocks: blocks
+        }
+      }
+    }
+
+    if (block.name === ASK_TOOL_NAME) {
+      const input = block.input || {}
+      const rawOptions = Array.isArray(input.options) ? input.options : []
+      const options = []
+      const seen = new Set()
+      for (const opt of rawOptions) {
+        const encoded = typeof opt?.nodeId === 'string' ? opt.nodeId : null
+        if (!encoded) continue
+        const candidate = byEncodedId.get(encoded)
+        if (!candidate) continue
+        if (seen.has(candidate.originalId)) continue
+        seen.add(candidate.originalId)
+        options.push({
+          nodeId: candidate.originalId,
+          // Use the canonical candidate label, not the model's input field, so
+          // chips and the label-word shortcut stay anchored to real notes even
+          // if the model paraphrases.
+          label: typeof candidate.label === 'string' ? candidate.label : ''
+        })
+      }
+      if (options.length < 2 || options.length > 3) continue
+      return {
+        type: 'ask',
+        toolUseId: typeof block.id === 'string' ? block.id : null,
+        question: typeof input.question === 'string' ? input.question : '',
+        options,
+        assistantBlocks: blocks
+      }
     }
   }
 
