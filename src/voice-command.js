@@ -1,4 +1,4 @@
-const DEFAULT_WAKE_WORDS = ['claude', 'claud', 'cloud', 'clod', 'code', 'crowd', 'clyde']
+const DEFAULT_WAKE_WORDS = ['claude', 'claud', 'cloud', 'clod', 'clyde']
 const COMMAND_PREFIXES = ['show me', 'go to', 'open', 'read', 'show']
 
 export function extractDirectCommand(transcript) {
@@ -66,15 +66,20 @@ export function matchNoteCommand(command, nodes) {
 
 function matchAgainstLabel(query, label) {
   if (label === query) return 'exact'
-  if (label.includes(query)) return 'substring'
-  if (allWordsPresent(query, label)) return 'all-words'
+  if (hasWordPrefix(query, label)) return 'substring'
+  if (allQueryWordsHaveWordPrefix(query, label)) return 'all-words'
   return null
 }
 
-function allWordsPresent(query, label) {
-  const words = query.split(' ').filter(Boolean)
-  if (words.length === 0) return false
-  return words.every(word => label.includes(word))
+function hasWordPrefix(query, label) {
+  // Match at a word boundary: "alpha" hits "Alpha Notes" but "rust" does not hit "Trust".
+  return label.startsWith(query) || label.includes(` ${query}`)
+}
+
+function allQueryWordsHaveWordPrefix(query, label) {
+  const queryWords = query.split(' ').filter(Boolean)
+  if (queryWords.length === 0) return false
+  return queryWords.every(word => hasWordPrefix(word, label))
 }
 
 function stripCommandPrefix(text) {

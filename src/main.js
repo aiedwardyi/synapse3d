@@ -112,6 +112,7 @@ let gestureHud = null
 let gestureLegend = null
 let voiceListener = null
 let voiceStatusElement = null
+let voiceToggleButton = null
 let latestVoiceCommandSeq = 0
 let voiceStatusRevertTimer = null
 
@@ -909,6 +910,7 @@ function createNodeHoverLabelElement(documentRef) {
 
 function initVoiceListener() {
   voiceStatusElement = document.getElementById('voice-status')
+  voiceToggleButton = document.getElementById('voice-toggle')
   voiceListener = createVoiceListener({
     onCommand: handleVoiceCommand,
     onError: err => console.warn('voice listener error:', err),
@@ -917,12 +919,34 @@ function initVoiceListener() {
 
   if (!voiceListener.isSupported() || !voiceStatusElement) {
     if (voiceStatusElement) voiceStatusElement.hidden = true
+    if (voiceToggleButton) voiceToggleButton.hidden = true
     return
   }
 
   trackingButton?.addEventListener('click', () => {
     voiceListener?.start()
+    if (voiceToggleButton) {
+      voiceToggleButton.hidden = false
+      syncVoiceToggleLabel()
+    }
   })
+
+  voiceToggleButton?.addEventListener('click', () => {
+    if (!voiceListener) return
+    if (voiceListener.isListening()) {
+      voiceListener.stop()
+    } else {
+      voiceListener.start()
+    }
+    syncVoiceToggleLabel()
+  })
+}
+
+function syncVoiceToggleLabel() {
+  if (!voiceToggleButton) return
+  const on = Boolean(voiceListener?.isListening())
+  voiceToggleButton.textContent = on ? 'Voice ON' : 'Voice OFF'
+  voiceToggleButton.classList.toggle('voice-off', !on)
 }
 
 function initEscapeHandling(gestureLegendElement) {

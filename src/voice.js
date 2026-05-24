@@ -18,6 +18,7 @@ export function createVoiceListener({
 
   let recognition = null
   let active = false
+  let restartPending = false
   let lastErrorAt = 0
   let consecutiveErrors = 0
 
@@ -32,6 +33,7 @@ export function createVoiceListener({
   function start() {
     if (!supported || active) return
     active = true
+    restartPending = false
     consecutiveErrors = 0
     spinUpRecognition()
     emitState({ state: 'listening' })
@@ -40,6 +42,7 @@ export function createVoiceListener({
   function stop() {
     if (!active) return
     active = false
+    restartPending = false
     safelyStopRecognition()
     emitState({ state: 'idle' })
   }
@@ -61,8 +64,10 @@ export function createVoiceListener({
       safelyStopRecognition()
       recognition = null
       reportError(err?.message || 'start-failed', err)
-      if (active) {
+      if (active && !restartPending) {
+        restartPending = true
         setTimeout(() => {
+          restartPending = false
           if (!active) return
           spinUpRecognition()
         }, RESTART_BACKOFF_MS)
@@ -150,9 +155,11 @@ export function createVoiceListener({
   }
 
   function handleEnd() {
-    if (!active) return
+    if (!active || restartPending) return
 
+    restartPending = true
     setTimeout(() => {
+      restartPending = false
       if (!active) return
       spinUpRecognition()
     }, RESTART_DEBOUNCE_MS)

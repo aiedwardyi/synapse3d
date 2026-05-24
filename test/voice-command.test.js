@@ -161,6 +161,20 @@ test('matchNoteCommand returns null when no node matches', () => {
   assert.equal(matchNoteCommand('zeta', nodes), null)
 })
 
+test('matchNoteCommand requires substring to start at a word boundary', () => {
+  // "rust" must not match "Trust" and "net" must not match "Internet".
+  assert.equal(matchNoteCommand('rust', [{ id: 'a', label: 'Trust Fund' }]), null)
+  assert.equal(matchNoteCommand('net', [{ id: 'a', label: 'Internet Notes' }]), null)
+})
+
+test('matchNoteCommand matches prefix of a label word', () => {
+  // "alph" should still match "Alpha" because the query starts at the word boundary.
+  const nodes = [{ id: 'a', label: 'Alpha' }]
+  const result = matchNoteCommand('alph', nodes)
+  assert.equal(result?.nodeId, 'a')
+  assert.equal(result?.matchType, 'substring')
+})
+
 test('matchNoteCommand handles empty or missing node list', () => {
   assert.equal(matchNoteCommand('alpha', []), null)
   assert.equal(matchNoteCommand('alpha', null), null)
