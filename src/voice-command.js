@@ -95,7 +95,7 @@ function normalizeText(text) {
   if (typeof text !== 'string') return ''
   return text
     .toLowerCase()
-    .replace(/[.,!?;:"'`(){}\[\]]/g, ' ')
+    .replace(/[.,!?;:"'`(){}\[\]\-_/]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
 }

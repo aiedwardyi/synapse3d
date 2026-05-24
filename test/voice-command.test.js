@@ -175,6 +175,16 @@ test('matchNoteCommand matches prefix of a label word', () => {
   assert.equal(result?.matchType, 'substring')
 })
 
+test('matchNoteCommand treats hyphens and underscores in labels as word separators', () => {
+  const nodes = [{ id: 'a', label: 'synapse-3d' }]
+
+  assert.equal(matchNoteCommand('open 3d', nodes)?.nodeId, 'a')
+  assert.equal(matchNoteCommand('open synapse 3d', nodes)?.nodeId, 'a')
+
+  const underscored = [{ id: 'b', label: 'note_about_entropy' }]
+  assert.equal(matchNoteCommand('open entropy', underscored)?.nodeId, 'b')
+})
+
 test('matchNoteCommand handles empty or missing node list', () => {
   assert.equal(matchNoteCommand('alpha', []), null)
   assert.equal(matchNoteCommand('alpha', null), null)
