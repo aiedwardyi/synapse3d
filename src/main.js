@@ -112,6 +112,7 @@ let gestureHud = null
 let gestureLegend = null
 let voiceListener = null
 let voiceStatusElement = null
+let latestVoiceCommandSeq = 0
 let currentSelection = null
 let currentHover = null
 let currentGraphData = { nodes: [], links: [] }
@@ -447,13 +448,14 @@ function updateGestureState(gestureState) {
 }
 
 async function handleVoiceCommand(command) {
+  const seq = ++latestVoiceCommandSeq
   const trimmed = typeof command === 'string' ? command.trim() : ''
   if (!trimmed) return
 
   const nodes = currentGraphData.nodes || []
-  let resolvedNodeId = matchNoteCommand(trimmed, nodes)?.nodeId || null
+  let resolvedNodeId = matchNoteCommand(trimmed, nodes)?.nodeId ?? null
 
-  if (!resolvedNodeId) {
+  if (resolvedNodeId == null) {
     const apiKey = import.meta.env?.VITE_ANTHROPIC_API_KEY
     if (apiKey) {
       try {
@@ -461,15 +463,21 @@ async function handleVoiceCommand(command) {
       } catch (err) {
         console.warn('voice intent failed:', err)
       }
+      if (seq !== latestVoiceCommandSeq) return
     }
   }
 
-  if (!resolvedNodeId) return
+  if (resolvedNodeId == null) {
+    renderVoiceStatus({ state: 'unmatched', text: trimmed })
+    return
+  }
 
   const opened = noteReader?.openNote(resolvedNodeId)
   if (opened) {
     const node = getGraphNode(resolvedNodeId)
     if (node) selectGraphNode(node)
+  } else {
+    renderVoiceStatus({ state: 'unmatched', text: trimmed })
   }
 }
 
@@ -496,6 +504,7 @@ function voiceStatusCopy(stateName, text) {
     if (text) return { kicker: 'HEARD', body: text }
     return { kicker: 'VOICE', body: 'WAKE WORD' }
   }
+  if (stateName === 'unmatched') return { kicker: 'NO MATCH', body: text || '' }
   return { kicker: 'HEARD', body: text || '' }
 }
 

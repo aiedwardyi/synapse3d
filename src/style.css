@@ -710,6 +710,11 @@ body.note-reader-open #gesture-hud {
   box-shadow: 0 0 8px rgba(74, 144, 226, 0.6);
 }
 
+#voice-status[data-state="unmatched"] .voice-status-dot {
+  background: rgba(226, 74, 74, 0.85);
+  box-shadow: 0 0 8px rgba(226, 74, 74, 0.6);
+}
+
 #voice-status .voice-status-copy {
   display: grid;
   gap: 2px;

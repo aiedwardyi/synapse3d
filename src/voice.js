@@ -1,9 +1,10 @@
 import { extractWakeCommand } from './voice-command.js'
 
-const RESTART_DEBOUNCE_MS = 120
+const RESTART_DEBOUNCE_MS = 350
 const TIGHT_ERROR_WINDOW_MS = 1000
 const MAX_CONSECUTIVE_ERRORS = 3
 const PERMANENT_ERROR_NAMES = new Set(['not-allowed', 'service-not-allowed'])
+const QUIET_ERROR_NAMES = new Set(['no-speech', 'aborted', 'network'])
 
 export function createVoiceListener({
   onCommand,
@@ -54,7 +55,11 @@ export function createVoiceListener({
     try {
       recognition.start()
     } catch (err) {
+      active = false
+      safelyStopRecognition()
+      recognition = null
       reportError(err?.message || 'start-failed', err)
+      emitState({ state: 'idle' })
     }
   }
 
@@ -97,11 +102,9 @@ export function createVoiceListener({
     }
 
     emitState({ state: 'armed', text: command })
-    try {
-      onCommand?.(command)
-    } catch (err) {
-      reportError(err?.message || 'on-command-failed', err)
-    }
+    Promise
+      .resolve(onCommand?.(command))
+      .catch(err => reportError(err?.message || 'on-command-failed', err))
   }
 
   function handleError(event) {
@@ -113,6 +116,8 @@ export function createVoiceListener({
       emitState({ state: 'idle' })
       return
     }
+
+    if (QUIET_ERROR_NAMES.has(errorName)) return
 
     const now = nowMs()
     if (now - lastErrorAt < TIGHT_ERROR_WINDOW_MS) {

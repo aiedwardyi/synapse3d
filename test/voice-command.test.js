@@ -3,7 +3,7 @@ import { test } from 'node:test'
 import { extractWakeCommand, matchNoteCommand } from '../src/voice-command.js'
 
 test('extractWakeCommand returns text after wake word', () => {
-  assert.equal(extractWakeCommand('synapse open alpha'), 'open alpha')
+  assert.equal(extractWakeCommand('claude open alpha'), 'open alpha')
 })
 
 test('extractWakeCommand returns null when wake word absent', () => {
@@ -11,20 +11,20 @@ test('extractWakeCommand returns null when wake word absent', () => {
 })
 
 test('extractWakeCommand accepts fuzzy variants of the wake word', () => {
-  assert.equal(extractWakeCommand('synapps open alpha'), 'open alpha')
-  assert.equal(extractWakeCommand('sinapse open alpha'), 'open alpha')
+  assert.equal(extractWakeCommand('cloud open alpha'), 'open alpha')
+  assert.equal(extractWakeCommand('claud open alpha'), 'open alpha')
 })
 
 test('extractWakeCommand strips punctuation around the wake word', () => {
-  assert.equal(extractWakeCommand('Synapse, open alpha.'), 'open alpha')
+  assert.equal(extractWakeCommand('Claude, open alpha.'), 'open alpha')
 })
 
 test('extractWakeCommand is case insensitive', () => {
-  assert.equal(extractWakeCommand('SYNAPSE Open Alpha'), 'open alpha')
+  assert.equal(extractWakeCommand('CLAUDE Open Alpha'), 'open alpha')
 })
 
 test('extractWakeCommand returns empty string when wake word has no trailing text', () => {
-  assert.equal(extractWakeCommand('hey synapse'), '')
+  assert.equal(extractWakeCommand('hey claude'), '')
 })
 
 test('extractWakeCommand returns null for non-string input', () => {
@@ -44,7 +44,7 @@ test('extractWakeCommand honours a custom wake word list', () => {
     'open alpha'
   )
   assert.equal(
-    extractWakeCommand('synapse open alpha', { wakeWords: ['jarvis'] }),
+    extractWakeCommand('claude open alpha', { wakeWords: ['jarvis'] }),
     null
   )
 })

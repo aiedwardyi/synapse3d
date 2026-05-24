@@ -3,6 +3,8 @@ const MODEL = 'claude-sonnet-4-6'
 const ANTHROPIC_VERSION = '2023-06-01'
 const TOOL_NAME = 'open_note'
 const MAX_TOKENS = 256
+const MAX_CANDIDATES = 200
+const REQUEST_TIMEOUT_MS = 8000
 const SYSTEM_PROMPT = [
   'You help a user navigate a small knowledge graph by voice.',
   'You will receive the spoken request and a JSON list of available notes (id and label).',
@@ -35,7 +37,9 @@ function buildCandidates(nodes) {
     seen.add(id)
 
     const label = typeof node.label === 'string' && node.label.trim() ? node.label : id
-    candidates.push({ id, label })
+    candidates.push({ id, label, originalId: node.id })
+
+    if (candidates.length >= MAX_CANDIDATES) break
   }
 
   return candidates
@@ -43,13 +47,15 @@ function buildCandidates(nodes) {
 
 async function sendMessagesRequest(command, candidates, apiKey) {
   const ids = candidates.map(candidate => candidate.id)
+  const promptCandidates = candidates.map(({ id, label }) => ({ id, label }))
   const body = {
     model: MODEL,
     max_tokens: MAX_TOKENS,
     system: SYSTEM_PROMPT,
+    tool_choice: { type: 'auto' },
     messages: [{
       role: 'user',
-      content: `Request: ${command}\n\nAvailable notes:\n${JSON.stringify(candidates, null, 2)}`
+      content: `Request: ${command}\n\nAvailable notes:\n${JSON.stringify(promptCandidates, null, 2)}`
     }],
     tools: [{
       name: TOOL_NAME,
@@ -68,10 +74,14 @@ async function sendMessagesRequest(command, candidates, apiKey) {
     }]
   }
 
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+
   let response
   try {
     response = await fetch(ENDPOINT, {
       method: 'POST',
+      signal: controller.signal,
       headers: {
         'content-type': 'application/json',
         'x-api-key': apiKey,
@@ -81,8 +91,14 @@ async function sendMessagesRequest(command, candidates, apiKey) {
       body: JSON.stringify(body)
     })
   } catch (err) {
-    console.warn('voice-intent: network failure', err)
+    if (err?.name === 'AbortError') {
+      console.warn('voice-intent: request timed out')
+    } else {
+      console.warn('voice-intent: network failure', err)
+    }
     return null
+  } finally {
+    clearTimeout(timeoutId)
   }
 
   if (!response.ok) {
@@ -100,12 +116,14 @@ async function sendMessagesRequest(command, candidates, apiKey) {
 
 function pickToolUseNodeId(response, candidates) {
   const blocks = Array.isArray(response?.content) ? response.content : []
-  const validIds = new Set(candidates.map(candidate => candidate.id))
+  const byStringId = new Map(candidates.map(candidate => [candidate.id, candidate.originalId]))
 
   for (const block of blocks) {
     if (block?.type !== 'tool_use' || block.name !== TOOL_NAME) continue
     const nodeId = block.input?.nodeId
-    if (typeof nodeId === 'string' && validIds.has(nodeId)) return nodeId
+    if (typeof nodeId === 'string' && byStringId.has(nodeId)) {
+      return byStringId.get(nodeId)
+    }
   }
 
   return null

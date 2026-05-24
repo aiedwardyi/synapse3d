@@ -1,4 +1,4 @@
-const DEFAULT_WAKE_WORDS = ['synapse', 'synapps', 'sinapse']
+const DEFAULT_WAKE_WORDS = ['claude', 'claud', 'cloud', 'clod']
 const COMMAND_PREFIXES = ['show me', 'go to', 'open', 'read', 'show']
 
 export function extractWakeCommand(transcript, { wakeWords = DEFAULT_WAKE_WORDS } = {}) {
