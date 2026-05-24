@@ -13,6 +13,7 @@ test('extractWakeCommand returns null when wake word absent', () => {
 test('extractWakeCommand accepts fuzzy variants of the wake word', () => {
   assert.equal(extractWakeCommand('cloud open alpha'), 'open alpha')
   assert.equal(extractWakeCommand('claud open alpha'), 'open alpha')
+  assert.equal(extractWakeCommand('clod open alpha'), 'open alpha')
 })
 
 test('extractWakeCommand strips punctuation around the wake word', () => {
