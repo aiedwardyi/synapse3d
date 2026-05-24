@@ -17,7 +17,7 @@ const SYSTEM_PROMPT = [
   'When no candidate plausibly fits, do not call any tool.'
 ].join(' ')
 
-const CANDIDATES_BOUNDARY = '\n\nCandidate notes:\n'
+const CANDIDATES_HEADER = 'Candidate notes:\n'
 
 export function encodeSearchCandidates(command, nodes) {
   if (typeof command !== 'string' || !command.trim()) return []
@@ -33,11 +33,11 @@ export function withCandidateCacheBreakpoint(messages) {
   const first = messages[0]
   if (typeof first?.content !== 'string') return messages
 
-  const idx = first.content.indexOf(CANDIDATES_BOUNDARY)
+  const idx = first.content.indexOf(CANDIDATES_HEADER)
   if (idx === -1) return messages
 
-  const requestText = first.content.slice(0, idx)
-  const candidatesText = first.content.slice(idx + 2)
+  const requestText = first.content.slice(0, idx).replace(/\s+$/, '')
+  const candidatesText = first.content.slice(idx)
 
   const transformedFirst = {
     role: first.role,

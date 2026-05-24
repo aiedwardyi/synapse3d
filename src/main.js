@@ -641,6 +641,7 @@ function dispatchDirectVoiceCommand({ action, arg }, commandText) {
     } else {
       renderVoiceStatus({ state: 'unmatched', text: commandText })
     }
+    return
   }
 }
 
