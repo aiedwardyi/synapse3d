@@ -727,6 +727,11 @@ body.note-reader-open #gesture-hud {
   box-shadow: 0 0 10px rgba(126, 226, 122, 0.7);
 }
 
+#voice-status[data-state="asking"] .voice-status-dot {
+  background: rgba(160, 122, 226, 0.9);
+  box-shadow: 0 0 10px rgba(160, 122, 226, 0.7);
+}
+
 #voice-status .voice-status-copy {
   display: grid;
   gap: 2px;
@@ -743,6 +748,30 @@ body.note-reader-open #gesture-hud {
   font-size: 11px;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#voice-status[data-state="asking"] .voice-status-text {
+  white-space: normal;
+  text-overflow: clip;
+}
+
+#voice-status .voice-status-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 4px;
+}
+
+#voice-status .voice-status-option {
+  padding: 2px 7px;
+  background: rgba(160, 122, 226, 0.18);
+  border: 1px solid rgba(160, 122, 226, 0.52);
+  border-radius: 3px;
+  color: #d8c8ff;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   white-space: nowrap;
 }
 

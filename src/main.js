@@ -27,7 +27,15 @@ import { linkDirectionalParticlesForGestureState } from './gesture-particles.js'
 import { hoverNodeLabel, resolveHoverTarget } from './hover-target.js'
 import { createVoiceListener } from './voice.js'
 import { matchNoteCommand } from './voice-command.js'
-import { resolveNoteByIntent } from './voice-intent.js'
+import { callIntent, encodeSearchCandidates } from './voice-intent.js'
+import {
+  startConversation,
+  applyResponse,
+  applyAnswer,
+  abort as abortConversation,
+  isStale as isConversationStale,
+  isTerminal as isConversationTerminal
+} from './voice-conversation.js'
 import {
   createIncidentLinkMap,
   finiteGraphCoord,
@@ -115,6 +123,8 @@ let voiceStatusElement = null
 let voiceToggleButton = null
 let latestVoiceCommandSeq = 0
 let voiceStatusRevertTimer = null
+let activeVoiceConversation = null
+let activeVoiceConversationSeq = 0
 
 const VOICE_TRANSIENT_REVERT_MS = 2400
 let currentSelection = null
@@ -140,6 +150,7 @@ function render(data) {
   currentGraphVersion++
   incidentLinkMap = createIncidentLinkMap(data.links || [])
   noteReader?.close()
+  cancelActiveConversation()
   if (!graph) {
     graph = ForceGraph3D()(document.getElementById('graph'))
       .backgroundColor('rgba(0,0,0,0)')
@@ -459,40 +470,172 @@ async function handleVoiceCommand(command) {
   const trimmed = typeof command === 'string' ? command.trim() : ''
   if (!trimmed) return
 
-  const nodes = currentGraphData.nodes || []
-  let resolvedNodeId = matchNoteCommand(trimmed, nodes)?.nodeId ?? null
+  cancelActiveConversation()
 
-  if (resolvedNodeId == null) {
-    const apiKey = import.meta.env?.VITE_ANTHROPIC_API_KEY
-    if (apiKey) {
-      try {
-        resolvedNodeId = await resolveNoteByIntent(trimmed, nodes, { apiKey })
-      } catch (err) {
-        console.warn('voice intent failed:', err)
-      }
-    }
+  const nodes = currentGraphData.nodes || []
+  const directNodeId = matchNoteCommand(trimmed, nodes)?.nodeId ?? null
+  if (directNodeId != null) {
+    if (seq !== latestVoiceCommandSeq) return
+    if (versionAtStart !== currentGraphVersion) return
+    if (voiceListener && !voiceListener.isListening()) return
+    openResolvedNode(directNodeId, trimmed)
+    return
   }
 
-  // Guard against a newer command landing while resolution was in flight,
-  // the user toggling Voice OFF before the async path finished, or a vault
-  // swap that invalidates the candidate id space.
-  if (seq !== latestVoiceCommandSeq) return
-  if (versionAtStart !== currentGraphVersion) return
-  if (voiceListener && !voiceListener.isListening()) return
-
-  if (resolvedNodeId == null) {
+  const apiKey = import.meta.env?.VITE_ANTHROPIC_API_KEY
+  if (!apiKey) {
     renderVoiceStatus({ state: 'unmatched', text: trimmed })
     return
   }
 
-  const node = getGraphNode(resolvedNodeId)
-  const opened = noteReader?.openNote(resolvedNodeId)
+  const candidates = encodeSearchCandidates(trimmed, nodes)
+  if (candidates.length === 0) {
+    renderVoiceStatus({ state: 'unmatched', text: trimmed })
+    return
+  }
+
+  const conversationSeq = ++activeVoiceConversationSeq
+  let conversation = startConversation({
+    command: trimmed,
+    candidates,
+    graphVersion: versionAtStart
+  })
+  activeVoiceConversation = conversation
+
+  await driveConversation({
+    seq,
+    conversationSeq,
+    apiKey,
+    initialUtterance: trimmed
+  })
+}
+
+async function driveConversation({ seq, conversationSeq, apiKey, initialUtterance }) {
+  while (
+    activeVoiceConversation &&
+    activeVoiceConversationSeq === conversationSeq &&
+    activeVoiceConversation.phase === 'pending_api'
+  ) {
+    let response
+    try {
+      response = await callIntent({
+        messages: activeVoiceConversation.messages,
+        candidates: activeVoiceConversation.candidates
+      }, { apiKey })
+    } catch (err) {
+      console.warn('voice intent failed:', err)
+      response = null
+    }
+
+    if (!isConversationContextValid(seq, conversationSeq)) return
+
+    if (isConversationStale(activeVoiceConversation, currentGraphVersion)) {
+      activeVoiceConversation = abortConversation(activeVoiceConversation, 'graph_stale')
+      break
+    }
+
+    activeVoiceConversation = applyResponse(activeVoiceConversation, response)
+  }
+
+  if (!isConversationContextValid(seq, conversationSeq)) return
+
+  finalizeConversation(initialUtterance)
+}
+
+function finalizeConversation(originalUtterance) {
+  const state = activeVoiceConversation
+  if (!state) return
+
+  if (state.phase === 'pending_user') {
+    renderVoiceAsk(state.askMeta)
+    voiceListener?.armAwaitingAnswer()
+    return
+  }
+
+  if (state.phase === 'resolved') {
+    const nodeId = state.result?.nodeId
+    activeVoiceConversation = null
+    if (nodeId != null) {
+      openResolvedNode(nodeId, originalUtterance)
+    } else {
+      renderVoiceStatus({ state: 'unmatched', text: originalUtterance })
+    }
+    return
+  }
+
+  // aborted
+  activeVoiceConversation = null
+  if (state.reason === 'graph_stale') {
+    renderVoiceStatus({ state: 'idle' })
+  } else {
+    renderVoiceStatus({ state: 'unmatched', text: originalUtterance })
+  }
+}
+
+function openResolvedNode(nodeId, fallbackText) {
+  const node = getGraphNode(nodeId)
+  const opened = noteReader?.openNote(nodeId)
   if (opened) {
     if (node) selectGraphNode(node)
-    renderVoiceStatus({ state: 'opened', text: node?.label || String(resolvedNodeId) })
+    renderVoiceStatus({ state: 'opened', text: node?.label || String(nodeId) })
   } else {
-    renderVoiceStatus({ state: 'unmatched', text: trimmed })
+    renderVoiceStatus({ state: 'unmatched', text: fallbackText })
   }
+}
+
+function isConversationContextValid(commandSeq, conversationSeq) {
+  if (commandSeq !== latestVoiceCommandSeq) return false
+  if (conversationSeq !== activeVoiceConversationSeq) return false
+  if (voiceListener && !voiceListener.isListening()) return false
+  return true
+}
+
+function cancelActiveConversation() {
+  voiceListener?.disarmAwaitingAnswer()
+  activeVoiceConversation = null
+  activeVoiceConversationSeq++
+}
+
+async function handleVoiceAnswer(answerText) {
+  const state = activeVoiceConversation
+  if (!state || state.phase !== 'pending_user') return
+
+  const conversationSeq = activeVoiceConversationSeq
+  const trimmed = typeof answerText === 'string' ? answerText.trim() : ''
+  if (!trimmed) return
+
+  if (isConversationStale(state, currentGraphVersion)) {
+    activeVoiceConversation = null
+    renderVoiceStatus({ state: 'idle' })
+    return
+  }
+
+  activeVoiceConversation = applyAnswer(state, trimmed)
+
+  if (activeVoiceConversation.phase === 'pending_api') {
+    const apiKey = import.meta.env?.VITE_ANTHROPIC_API_KEY
+    if (!apiKey) {
+      activeVoiceConversation = null
+      renderVoiceStatus({ state: 'unmatched', text: trimmed })
+      return
+    }
+    await driveConversation({
+      seq: latestVoiceCommandSeq,
+      conversationSeq,
+      apiKey,
+      initialUtterance: trimmed
+    })
+    return
+  }
+
+  finalizeConversation(trimmed)
+}
+
+function handleVoiceAnswerTimeout() {
+  const state = activeVoiceConversation
+  if (!state) return
+  activeVoiceConversation = abortConversation(state, 'timeout')
+  finalizeConversation(state.askMeta?.question || '')
 }
 
 function renderVoiceStatus(state) {
@@ -525,6 +668,52 @@ function renderVoiceStatus(state) {
       )
     }, VOICE_TRANSIENT_REVERT_MS)
   }
+}
+
+function renderVoiceAsk(askMeta) {
+  if (!voiceStatusElement || !askMeta) return
+
+  if (voiceStatusRevertTimer) {
+    clearTimeout(voiceStatusRevertTimer)
+    voiceStatusRevertTimer = null
+  }
+
+  while (voiceStatusElement.firstChild) {
+    voiceStatusElement.removeChild(voiceStatusElement.firstChild)
+  }
+
+  const dot = document.createElement('span')
+  dot.className = 'voice-status-dot'
+  voiceStatusElement.appendChild(dot)
+
+  const copy = document.createElement('div')
+  copy.className = 'voice-status-copy'
+
+  const kickerEl = document.createElement('div')
+  kickerEl.className = 'voice-status-kicker'
+  kickerEl.textContent = 'CLARIFY'
+  copy.appendChild(kickerEl)
+
+  const bodyEl = document.createElement('div')
+  bodyEl.className = 'voice-status-text'
+  bodyEl.textContent = askMeta.question || 'Which one?'
+  copy.appendChild(bodyEl)
+
+  if (Array.isArray(askMeta.options) && askMeta.options.length > 0) {
+    const optionsEl = document.createElement('div')
+    optionsEl.className = 'voice-status-options'
+    for (const opt of askMeta.options) {
+      const chip = document.createElement('span')
+      chip.className = 'voice-status-option'
+      chip.textContent = opt.label || String(opt.nodeId)
+      optionsEl.appendChild(chip)
+    }
+    copy.appendChild(optionsEl)
+  }
+
+  voiceStatusElement.appendChild(copy)
+  voiceStatusElement.setAttribute('data-state', 'asking')
+  voiceStatusElement.hidden = false
 }
 
 function voiceStatusCopy(stateName, text) {
@@ -921,6 +1110,8 @@ function initVoiceListener() {
   voiceToggleButton = document.getElementById('voice-toggle')
   voiceListener = createVoiceListener({
     onCommand: handleVoiceCommand,
+    onAnswer: handleVoiceAnswer,
+    onAnswerTimeout: handleVoiceAnswerTimeout,
     onError: err => console.warn('voice listener error:', err),
     onStateChange: renderVoiceStatus
   })
@@ -942,6 +1133,7 @@ function initVoiceListener() {
   voiceToggleButton?.addEventListener('click', () => {
     if (!voiceListener) return
     if (voiceListener.isListening()) {
+      cancelActiveConversation()
       voiceListener.stop()
     } else {
       voiceListener.start()
