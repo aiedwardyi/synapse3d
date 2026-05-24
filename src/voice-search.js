@@ -31,10 +31,11 @@ export function searchNotes(query, nodes, { limit = DEFAULT_LIMIT } = {}) {
 
   for (const node of nodes) {
     if (!node || node.missing || node.id == null || seen.has(node.id)) continue
-    seen.add(node.id)
 
     const score = scoreNode(node, terms)
     if (score <= 0) continue
+
+    seen.add(node.id)
 
     const snippet = buildSnippet(typeof node.content === 'string' ? node.content : '', terms)
 

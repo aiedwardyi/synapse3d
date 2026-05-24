@@ -116,6 +116,12 @@ export function createVoiceListener({
       const transcript = result[0]?.transcript
       if (typeof transcript !== 'string') continue
 
+      // A real final result means recognition is healthy; drop any error
+      // counter we accumulated so transient errors across a long session
+      // don't eventually trip the restart-loop guard.
+      consecutiveErrors = 0
+      lastErrorAt = 0
+
       processTranscript(transcript)
     }
   }

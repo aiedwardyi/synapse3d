@@ -185,3 +185,11 @@ test('deduplicates nodes that share an id', () => {
   assert.equal(results.length, 1)
   assert.equal(results[0].id, 'dup')
 })
+
+test('keeps a later duplicate when the earlier one scores zero', () => {
+  const zeroScoreFirst = node({ id: 'dup', label: 'Other' })
+  const positiveSecond = node({ id: 'dup', label: 'Alpha' })
+  const results = searchNotes('alpha', [zeroScoreFirst, positiveSecond])
+  assert.equal(results.length, 1)
+  assert.equal(results[0].label, 'Alpha')
+})
