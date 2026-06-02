@@ -54,13 +54,15 @@ A HUD and atmosphere presentation pass was added on top of v1.0.0 (commit ec6620
 
 A note reader and graph navigability pass followed (commit 0df0bf4). Selecting a node can now open a readout panel that renders the note's content and pages through its linked notes. Nodes show a hover highlight and name label before selection, the force layout settles once and then holds still so dragging moves only the grabbed node, and directional link particles quiet during interaction. The reader opens through a programmatic entry point so it can later be driven by a gesture or voice command.
 
+A voice control layer followed (commit cad3424). A wake word arms a spoken command; saying the name of a note opens it through that same programmatic entry point. A fast local matcher handles direct phrasing, and a natural-language fallback reads candidate note bodies and recency to resolve ambiguous requests, asking a short clarifying question when needed. A spoken command vocabulary covers opening, closing, paging, selecting, clearing, recentering, zooming, and rotating. Repeated natural-language calls are cached to reduce cost. Transcription uses the browser speech API; the natural-language fallback uses a hosted model and runs when a key is configured, degrading to local matching otherwise. One known issue remains: continuous recognition can intermittently stop capturing until the page is reloaded, and a recognizer-recycle fix is planned.
+
 ---
 
 ## v2 - Stretch
 
 Out of scope for v1 but architecturally compatible:
 
-- **Voice control via Claude API tool use.** Natural-language commands ("show me notes connected to entropy") routed through tool calls that mutate scene state.
+- **Spoken confirmation (text-to-speech).** Speak clarification questions and command outcomes aloud, building on the voice control layer.
 - **Custom gesture classifier.** Small MLP trained on landmark sequences for gestures MediaPipe doesn't ship (snap, point, hold-up).
 - **Semantic search.** Local embeddings over note content. Nearest-neighbor highlights in graph space.
 

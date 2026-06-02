@@ -20,6 +20,16 @@ v1.0.0 released (commit c2a8966).
 - [x] Directional link particles quiet during interaction and restore when idle (`src/gesture-particles.js`)
 - [x] 223 tests passing, build clean, CI green
 
+## Voice control (merged, commit cad3424)
+
+- [x] Open a note by voice: a wake word arms a spoken command that opens the matching note, reusing the reader's programmatic entry point
+- [x] Local command matcher (exact, word-boundary substring, all-words) with a natural-language fallback that reads candidate note bodies and recency to resolve ambiguous phrasing
+- [x] Conversational clarification: when a request is ambiguous, a short follow-up question is shown and the next spoken phrase is treated as the answer
+- [x] Direct command vocabulary: close, next, previous, select, clear, recenter, zoom, and rotate
+- [x] Prompt caching on the natural-language calls to reduce cost on repeated sessions
+- [x] Visible microphone error states; the voice toggle is available without starting hand tracking first
+- [x] 336 tests passing, build clean, CI green
+
 ## Done
 
 - [x] README.md with "What it demonstrates" framing, three in-app screenshots, three badges (CI, License, Version)
@@ -45,11 +55,15 @@ v1.0.0 released (commit c2a8966).
 
 - None.
 
+## Known issues
+
+- Continuous speech recognition can intermittently stop capturing until the page is reloaded. A recognizer-recycle fix (rebuild the recognizer on end/error, plus an inactivity watchdog) is planned next.
+
 ## Future work
 
 Pick one when ready:
 1. **Media node previews:** image/video previews on nodes. Adds render cost and depends on the vault carrying media plus embed parsing; scope deliberately.
-2. **Open by gesture or voice:** a dedicated gesture or a voice command to open the reader, reusing its existing programmatic entry point.
+2. **Voice recognizer reliability:** rebuild the recognizer instance on end/error and add an inactivity watchdog so listening recovers without a page reload.
 3. **v1.5:** semantic clustering via embeddings, attribute-based coloring, topology toggles.
 4. **Smoothing tuning panel if needed:** only if real usage shows jitter or lag.
-5. **v2 stretch:** voice control, or a custom gesture classifier.
+5. **Custom gesture classifier:** a small model over landmark sequences for gestures the tracker does not ship.
