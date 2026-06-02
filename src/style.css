@@ -717,6 +717,11 @@ body.note-reader-open #gesture-hud {
   box-shadow: 0 0 8px rgba(226, 74, 74, 0.6);
 }
 
+#voice-status[data-state="error"] .voice-status-dot {
+  background: rgba(255, 104, 86, 0.95);
+  box-shadow: 0 0 10px rgba(255, 104, 86, 0.75);
+}
+
 #voice-status[data-state="processing"] .voice-status-dot {
   background: rgba(226, 160, 74, 0.9);
   box-shadow: 0 0 10px rgba(226, 160, 74, 0.7);

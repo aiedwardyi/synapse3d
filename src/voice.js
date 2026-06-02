@@ -208,8 +208,9 @@ export function createVoiceListener({
     if (PERMANENT_ERROR_NAMES.has(errorName)) {
       active = false
       disarmAwaitingAnswer()
+      safelyStopRecognition()
       reportError(errorName)
-      emitState({ state: 'idle' })
+      emitState({ state: 'error', text: errorName })
       return
     }
 
@@ -228,7 +229,7 @@ export function createVoiceListener({
       disarmAwaitingAnswer()
       safelyStopRecognition()
       reportError(`restart-loop:${errorName}`)
-      emitState({ state: 'idle' })
+      emitState({ state: 'error', text: `restart-loop:${errorName}` })
     }
   }
 

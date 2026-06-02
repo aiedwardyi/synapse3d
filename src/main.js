@@ -731,6 +731,7 @@ function renderVoiceStatus(state) {
 
   const { kicker, body } = voiceStatusCopy(stateName, state?.text)
   paintVoiceStatus(voiceStatusElement, stateName, kicker, body)
+  syncVoiceToggleLabel()
 
   if (stateName === 'opened' || stateName === 'done' || stateName === 'unmatched') {
     voiceStatusRevertTimer = setTimeout(() => {
@@ -795,7 +796,15 @@ function voiceStatusCopy(stateName, text) {
   if (stateName === 'opened') return { kicker: 'OPENED', body: text || '' }
   if (stateName === 'done') return { kicker: 'DONE', body: text || '' }
   if (stateName === 'unmatched') return { kicker: 'NO MATCH', body: text || '' }
+  if (stateName === 'error') return { kicker: 'MIC', body: voiceErrorText(text) }
   return { kicker: 'HEARD', body: text || '' }
+}
+
+function voiceErrorText(text) {
+  if (text === 'not-allowed') return 'BLOCKED'
+  if (text === 'service-not-allowed') return 'SERVICE BLOCKED'
+  if (typeof text === 'string' && text.startsWith('restart-loop:')) return 'RESTART FAILED'
+  return text ? String(text).toUpperCase() : 'ERROR'
 }
 
 function paintVoiceStatus(element, stateName, kicker, body) {
@@ -1195,12 +1204,13 @@ function initVoiceListener() {
     return
   }
 
+  if (voiceToggleButton) {
+    voiceToggleButton.hidden = false
+    syncVoiceToggleLabel()
+  }
+
   trackingButton?.addEventListener('click', () => {
     voiceListener?.start()
-    if (voiceToggleButton) {
-      voiceToggleButton.hidden = false
-      syncVoiceToggleLabel()
-    }
   })
 
   voiceToggleButton?.addEventListener('click', () => {
