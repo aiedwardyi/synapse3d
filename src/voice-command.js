@@ -1,9 +1,49 @@
 const DEFAULT_WAKE_WORDS = ['claude', 'claud', 'cloud', 'clod', 'clyde', 'clan']
 export const COMMAND_PREFIXES = ['show me', 'go to', 'open', 'read', 'show']
 
+const CLOSE_COMMANDS = new Set(['close', 'close note', 'close reader'])
+const NEXT_COMMANDS = new Set(['next', 'next note', 'next link'])
+const PREV_COMMANDS = new Set(['back', 'prev', 'previous', 'back note', 'prev note', 'previous note', 'go back'])
+const CLEAR_COMMANDS = new Set(['clear', 'clear selection', 'deselect'])
+const RECENTER_COMMANDS = new Set(['center', 'reset', 'recenter', 'reset view', 'reset camera'])
+const ZOOM_DIRECTIONS = { 'zoom in': 'in', 'zoom out': 'out' }
+const ROTATE_DIRECTIONS = {
+  'rotate left': 'left',
+  'rotate right': 'right',
+  'rotate up': 'up',
+  'rotate down': 'down'
+}
+
+export function parseVoiceCommand(command) {
+  const normalized = normalizeText(command)
+  if (!normalized) return null
+
+  if (CLOSE_COMMANDS.has(normalized)) return { action: 'close' }
+  if (NEXT_COMMANDS.has(normalized)) return { action: 'next' }
+  if (PREV_COMMANDS.has(normalized)) return { action: 'prev' }
+  if (CLEAR_COMMANDS.has(normalized)) return { action: 'clear' }
+  if (RECENTER_COMMANDS.has(normalized)) return { action: 'recenter' }
+
+  if (Object.hasOwn(ZOOM_DIRECTIONS, normalized)) {
+    return { action: 'zoom', arg: ZOOM_DIRECTIONS[normalized] }
+  }
+  if (Object.hasOwn(ROTATE_DIRECTIONS, normalized)) {
+    return { action: 'rotate', arg: ROTATE_DIRECTIONS[normalized] }
+  }
+
+  if (normalized.startsWith('select ')) {
+    const arg = normalized.slice('select '.length).trim()
+    if (arg) return { action: 'select', arg }
+  }
+
+  return null
+}
+
 export function extractDirectCommand(transcript) {
   const normalized = normalizeText(transcript)
   if (!normalized) return null
+
+  if (parseVoiceCommand(normalized)) return normalized
 
   const sorted = [...COMMAND_PREFIXES].sort((a, b) => b.length - a.length)
   for (const prefix of sorted) {
@@ -29,11 +69,11 @@ export function extractWakeCommand(transcript, { wakeWords = DEFAULT_WAKE_WORDS 
   return null
 }
 
-export function matchNoteCommand(command, nodes) {
+export function matchNoteCommand(command, nodes, { stripPrefix = true } = {}) {
   const normalized = normalizeText(command)
   if (!normalized) return null
 
-  const query = stripCommandPrefix(normalized)
+  const query = stripPrefix ? stripCommandPrefix(normalized) : normalized
   if (!query) return null
 
   const candidates = Array.isArray(nodes) ? nodes : []

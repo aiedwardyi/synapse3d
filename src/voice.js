@@ -182,8 +182,8 @@ export function createVoiceListener({
 
     if (command === null) {
       // Chrome STT often drops short leading words like "claude". Accept a
-      // bare command if it starts with a recognised action verb; the matcher
-      // still requires a real label so casual conversation can't trigger it.
+      // bare command if it matches a direct action or starts with a recognised
+      // note-opening verb.
       command = extractDirectCommand(trimmed)
       if (command === null) {
         emitState({ state: 'heard', text: trimmed })
