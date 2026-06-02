@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { withCandidateCacheBreakpoint } from '../src/voice-intent.js'
+import { CANDIDATES_HEADER } from '../src/voice-message-format.js'
 
 test('withCandidateCacheBreakpoint splits the candidate list into a cached block', () => {
   const messages = [
@@ -20,7 +21,7 @@ test('withCandidateCacheBreakpoint splits the candidate list into a cached block
 
   assert.deepEqual(blocks[0], { type: 'text', text: 'Request: alpha' })
   assert.equal(blocks[1].type, 'text')
-  assert.equal(blocks[1].text.startsWith('Candidate notes:\n'), true)
+  assert.equal(blocks[1].text.startsWith(CANDIDATES_HEADER), true)
   assert.deepEqual(blocks[1].cache_control, { type: 'ephemeral' })
 })
 

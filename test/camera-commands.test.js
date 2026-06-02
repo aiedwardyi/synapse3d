@@ -61,6 +61,14 @@ test('computeZoomedPosition leaves position unchanged when on the target', () =>
   assert.deepEqual(next, { x: 5, y: 5, z: 5 })
 })
 
+test('computeZoomedPosition leaves position unchanged for unknown direction', () => {
+  const pos = { x: 0, y: 0, z: 100 }
+  const target = { x: 0, y: 0, z: 0 }
+  const next = computeZoomedPosition(pos, target, 'sideways', { factor: 0.8 })
+
+  assert.deepEqual(next, pos)
+})
+
 test('computeZoomedPosition scales radius by the requested factor when within bounds', () => {
   const pos = { x: 30, y: 40, z: 120 }
   const target = { x: 0, y: 0, z: 0 }

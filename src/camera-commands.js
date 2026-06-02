@@ -12,6 +12,10 @@ export function computeZoomedPosition(position, target, direction, {
   minRadius = DEFAULT_MIN_RADIUS,
   maxRadius = DEFAULT_MAX_RADIUS
 } = {}) {
+  if (direction !== 'in' && direction !== 'out') {
+    return { x: position.x, y: position.y, z: position.z }
+  }
+
   const dx = position.x - target.x
   const dy = position.y - target.y
   const dz = position.z - target.z

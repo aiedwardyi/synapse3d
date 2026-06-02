@@ -1,4 +1,5 @@
 import { searchNotes } from './voice-search.js'
+import { CANDIDATES_HEADER } from './voice-message-format.js'
 
 const ENDPOINT = 'https://api.anthropic.com/v1/messages'
 const MODEL = 'claude-sonnet-4-6'
@@ -16,8 +17,6 @@ const SYSTEM_PROMPT = [
   'When candidates tie purely on recency, prefer the most recently modified one and call open_note directly instead of asking.',
   'When no candidate plausibly fits, do not call any tool.'
 ].join(' ')
-
-const CANDIDATES_HEADER = 'Candidate notes:\n'
 
 export function encodeSearchCandidates(command, nodes) {
   if (typeof command !== 'string' || !command.trim()) return []
