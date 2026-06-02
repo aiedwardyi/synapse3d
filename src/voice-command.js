@@ -3,7 +3,7 @@ export const COMMAND_PREFIXES = ['show me', 'go to', 'open', 'read', 'show']
 
 const CLOSE_COMMANDS = new Set(['close', 'close note', 'close reader'])
 const NEXT_COMMANDS = new Set(['next', 'next note', 'next link'])
-const PREV_COMMANDS = new Set(['back', 'prev', 'previous', 'back note', 'previous note', 'go back'])
+const PREV_COMMANDS = new Set(['back', 'prev', 'previous', 'back note', 'prev note', 'previous note', 'go back'])
 const CLEAR_COMMANDS = new Set(['clear', 'clear selection', 'deselect'])
 const RECENTER_COMMANDS = new Set(['center', 'reset', 'recenter', 'reset view', 'reset camera'])
 const ZOOM_DIRECTIONS = { 'zoom in': 'in', 'zoom out': 'out' }
@@ -42,6 +42,8 @@ export function parseVoiceCommand(command) {
 export function extractDirectCommand(transcript) {
   const normalized = normalizeText(transcript)
   if (!normalized) return null
+
+  if (parseVoiceCommand(normalized)) return normalized
 
   const sorted = [...COMMAND_PREFIXES].sort((a, b) => b.length - a.length)
   for (const prefix of sorted) {

@@ -37,6 +37,8 @@ export function withCandidateCacheBreakpoint(messages) {
   if (idx === -1) return messages
 
   const requestText = first.content.slice(0, idx).replace(/\s+$/, '')
+  if (!requestText) return messages
+
   const candidatesText = first.content.slice(idx)
 
   const transformedFirst = {

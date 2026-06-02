@@ -56,6 +56,13 @@ test('withCandidateCacheBreakpoint returns input unchanged when the header is mi
   assert.equal(out, messages)
 })
 
+test('withCandidateCacheBreakpoint returns input unchanged when request text would be empty', () => {
+  const messages = [{ role: 'user', content: 'Candidate notes:\n[]' }]
+
+  const out = withCandidateCacheBreakpoint(messages)
+  assert.equal(out, messages)
+})
+
 test('withCandidateCacheBreakpoint returns input unchanged when content is not a string', () => {
   const messages = [
     {

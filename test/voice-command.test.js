@@ -219,10 +219,18 @@ test('extractDirectCommand accepts transcripts that start with a command verb', 
   assert.equal(extractDirectCommand('go to alpha'), 'go to alpha')
 })
 
+test('extractDirectCommand accepts direct action verbs when the wake word is dropped', () => {
+  assert.equal(extractDirectCommand('close'), 'close')
+  assert.equal(extractDirectCommand('rotate left'), 'rotate left')
+  assert.equal(extractDirectCommand('zoom in'), 'zoom in')
+  assert.equal(extractDirectCommand('select alpha'), 'select alpha')
+})
+
 test('extractDirectCommand returns null for verb-only transcripts', () => {
   assert.equal(extractDirectCommand('open'), null)
   assert.equal(extractDirectCommand('show me'), null)
   assert.equal(extractDirectCommand('go to'), null)
+  assert.equal(extractDirectCommand('select'), null)
 })
 
 test('extractDirectCommand returns null for non-command transcripts', () => {
@@ -250,6 +258,7 @@ test('parseVoiceCommand recognises back/prev/previous', () => {
   assert.deepEqual(parseVoiceCommand('prev'), { action: 'prev' })
   assert.deepEqual(parseVoiceCommand('previous'), { action: 'prev' })
   assert.deepEqual(parseVoiceCommand('go back'), { action: 'prev' })
+  assert.deepEqual(parseVoiceCommand('prev note'), { action: 'prev' })
   assert.deepEqual(parseVoiceCommand('previous note'), { action: 'prev' })
 })
 
