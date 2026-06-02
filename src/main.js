@@ -1211,7 +1211,6 @@ function initVoiceListener() {
 
   trackingButton?.addEventListener('click', () => {
     voiceListener?.start()
-    syncVoiceToggleLabel()
   })
 
   voiceToggleButton?.addEventListener('click', () => {
