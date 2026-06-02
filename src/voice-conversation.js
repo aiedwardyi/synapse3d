@@ -1,3 +1,5 @@
+import { CANDIDATES_HEADER } from './voice-message-format.js'
+
 const DEFAULT_MAX_ROUNDS = 2
 
 const RECENCY_TERMS = new Set([
@@ -121,7 +123,7 @@ function buildInitialUserMessage(command, candidates) {
   }))
   return {
     role: 'user',
-    content: `Request: ${command}\n\nCandidate notes:\n${JSON.stringify(promptCandidates, null, 2)}`
+    content: `Request: ${command}\n\n${CANDIDATES_HEADER}${JSON.stringify(promptCandidates, null, 2)}`
   }
 }
 

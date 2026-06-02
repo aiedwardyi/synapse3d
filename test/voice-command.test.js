@@ -260,6 +260,8 @@ test('parseVoiceCommand recognises back/prev/previous', () => {
   assert.deepEqual(parseVoiceCommand('go back'), { action: 'prev' })
   assert.deepEqual(parseVoiceCommand('prev note'), { action: 'prev' })
   assert.deepEqual(parseVoiceCommand('previous note'), { action: 'prev' })
+  assert.deepEqual(parseVoiceCommand('prev link'), { action: 'prev' })
+  assert.deepEqual(parseVoiceCommand('previous link'), { action: 'prev' })
 })
 
 test('parseVoiceCommand recognises select <name>', () => {

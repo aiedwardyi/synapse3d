@@ -8,6 +8,7 @@ import {
   isStale,
   isTerminal
 } from '../src/voice-conversation.js'
+import { CANDIDATES_HEADER } from '../src/voice-message-format.js'
 
 function cand(overrides) {
   return {
@@ -56,6 +57,16 @@ test('startConversation builds initial user message and pending_api phase', () =
   assert.ok(typeof state.messages[0].content === 'string')
   assert.ok(state.messages[0].content.includes('precision note'))
   assert.ok(state.messages[0].content.includes('Precision Note'))
+})
+
+test('startConversation uses the shared candidate header in the initial prompt', () => {
+  const state = startConversation({
+    command: 'open the precision note',
+    candidates: [C_RECENT],
+    graphVersion: 1
+  })
+
+  assert.ok(state.messages[0].content.includes(CANDIDATES_HEADER))
 })
 
 test('startConversation preserves the trimmed command on state for later status text', () => {
