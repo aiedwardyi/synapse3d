@@ -4,6 +4,10 @@ const RESTART_DEBOUNCE_MS = 350
 const RESTART_BACKOFF_MS = 1200
 const TIGHT_ERROR_WINDOW_MS = 1000
 const MAX_CONSECUTIVE_ERRORS = 3
+const WATCHDOG_THRESHOLD_MS = 9000
+const WATCHDOG_POLL_MS = 2000
+const RECYCLE_WINDOW_MS = 10000
+const MAX_RECYCLES_IN_WINDOW = 4
 const AWAITING_ANSWER_TIMEOUT_MS = 8000
 const PERMANENT_ERROR_NAMES = new Set(['not-allowed', 'service-not-allowed'])
 const QUIET_ERROR_NAMES = new Set(['no-speech', 'aborted'])
@@ -27,6 +31,9 @@ export function createVoiceListener({
   let consecutiveErrors = 0
   let awaitingAnswer = false
   let answerTimerId = null
+  let lastActivityAt = 0
+  let watchdogTimerId = null
+  let recycleTimestamps = []
 
   function isSupported() {
     return supported
@@ -72,8 +79,9 @@ export function createVoiceListener({
     active = true
     restartPending = false
     consecutiveErrors = 0
+    recycleTimestamps = []
     spinUpRecognition()
-    emitState({ state: 'listening' })
+    startWatchdog()
   }
 
   function stop() {
@@ -82,7 +90,8 @@ export function createVoiceListener({
     restartPending = false
     disarmAwaitingAnswer()
     clearRestartTimer()
-    safelyStopRecognition()
+    stopWatchdog()
+    teardownRecognition()
     emitState({ state: 'idle' })
   }
 
@@ -95,9 +104,26 @@ export function createVoiceListener({
   function spinUpRecognition() {
     const instance = new RecognitionImpl()
     recognition = instance
+    lastActivityAt = nowMs()
     instance.continuous = true
     instance.interimResults = false
     instance.lang = 'en-US'
+    instance.onstart = () => {
+      if (recognition !== instance) return
+      markActivity()
+    }
+    instance.onaudiostart = () => {
+      if (recognition !== instance) return
+      markActivity()
+    }
+    instance.onsoundstart = () => {
+      if (recognition !== instance) return
+      markActivity()
+    }
+    instance.onspeechstart = () => {
+      if (recognition !== instance) return
+      markActivity()
+    }
     instance.onresult = event => {
       if (recognition !== instance) return
       handleResult(event)
@@ -115,9 +141,8 @@ export function createVoiceListener({
       instance.start()
     } catch (err) {
       // Chrome throws InvalidStateError if the prior recognition is still tearing down.
-      // Retry on a backoff rather than killing the listener.
-      safelyStopRecognition()
-      recognition = null
+      // Recycle on a backoff rather than killing the listener.
+      teardownRecognition()
       reportError(err?.message || 'start-failed', err)
       if (active && !restartPending) {
         restartPending = true
@@ -127,14 +152,34 @@ export function createVoiceListener({
           if (!active) return
           spinUpRecognition()
         }, RESTART_BACKOFF_MS)
+        restartTimerId?.unref?.()
       }
+      return
     }
+
+    emitState({ state: 'listening' })
   }
 
-  function safelyStopRecognition() {
-    if (!recognition) return
+  function markActivity() {
+    lastActivityAt = nowMs()
+  }
+
+  function teardownRecognition() {
+    const instance = recognition
+    if (!instance) return
+    // Drop the reference first so any late event from this instance is ignored
+    // by the identity guard, then detach every handler and stop it. This mirrors
+    // the clean slate a page reload gives the engine.
+    recognition = null
+    instance.onstart = null
+    instance.onaudiostart = null
+    instance.onsoundstart = null
+    instance.onspeechstart = null
+    instance.onresult = null
+    instance.onerror = null
+    instance.onend = null
     try {
-      recognition.stop()
+      instance.stop()
     } catch {
       // Recognition was never fully started or is mid-teardown; nothing to do.
     }
@@ -142,6 +187,7 @@ export function createVoiceListener({
 
   function handleResult(event) {
     if (!active) return
+    markActivity()
     const results = event?.results
     if (!results) return
 
@@ -206,11 +252,7 @@ export function createVoiceListener({
     const errorName = event?.error || 'unknown'
 
     if (PERMANENT_ERROR_NAMES.has(errorName)) {
-      active = false
-      disarmAwaitingAnswer()
-      safelyStopRecognition()
-      reportError(errorName)
-      emitState({ state: 'error', text: errorName })
+      stopListeningWithError(errorName)
       return
     }
 
@@ -225,24 +267,107 @@ export function createVoiceListener({
     lastErrorAt = now
 
     if (consecutiveErrors > MAX_CONSECUTIVE_ERRORS) {
-      active = false
-      disarmAwaitingAnswer()
-      safelyStopRecognition()
-      reportError(`restart-loop:${errorName}`)
-      emitState({ state: 'error', text: `restart-loop:${errorName}` })
+      stopListeningWithError(`restart-loop:${errorName}`)
+      return
     }
+
+    // A transient error is followed by onend, but recycle directly too so a
+    // missing onend cannot leave the engine wedged.
+    scheduleRecycle()
+  }
+
+  function stopListeningWithError(text) {
+    active = false
+    restartPending = false
+    disarmAwaitingAnswer()
+    clearRestartTimer()
+    stopWatchdog()
+    teardownRecognition()
+    reportError(text)
+    emitState({ state: 'error', text })
   }
 
   function handleEnd() {
+    if (!active) return
+    scheduleRecycle()
+  }
+
+  // Recycle the recognizer: surface a brief reconnecting state, then tear down
+  // the wedged instance and build a fresh one on a debounce that backs off if
+  // recycles keep firing in a short window.
+  function scheduleRecycle() {
     if (!active || restartPending) return
 
     restartPending = true
+    emitState({ state: 'reconnecting' })
+
+    const now = nowMs()
+    noteRecycle(now)
+    const delayMs = recycleDelayMs({
+      recentRecycleCount: countRecentRecycles(now),
+      maxRecycles: MAX_RECYCLES_IN_WINDOW,
+      baseDelayMs: RESTART_DEBOUNCE_MS,
+      backoffDelayMs: RESTART_BACKOFF_MS
+    })
+
+    clearRestartTimer()
     restartTimerId = setTimeout(() => {
       restartTimerId = null
       restartPending = false
       if (!active) return
+      teardownRecognition()
       spinUpRecognition()
-    }, RESTART_DEBOUNCE_MS)
+    }, delayMs)
+    restartTimerId?.unref?.()
+  }
+
+  function startWatchdog() {
+    stopWatchdog()
+    watchdogTimerId = setTimeout(tickWatchdog, WATCHDOG_POLL_MS)
+    watchdogTimerId?.unref?.()
+  }
+
+  function stopWatchdog() {
+    if (watchdogTimerId === null) return
+    clearTimeout(watchdogTimerId)
+    watchdogTimerId = null
+  }
+
+  function tickWatchdog() {
+    watchdogTimerId = null
+    if (!active) return
+
+    const now = nowMs()
+    const status = restartPending ? 'reconnecting' : 'listening'
+    if (
+      shouldRecycleNow({
+        status,
+        lastActivityAt,
+        now,
+        thresholdMs: WATCHDOG_THRESHOLD_MS,
+        recentRecycleCount: countRecentRecycles(now),
+        maxRecycles: MAX_RECYCLES_IN_WINDOW
+      })
+    ) {
+      scheduleRecycle()
+    }
+
+    startWatchdog()
+  }
+
+  function noteRecycle(now) {
+    recycleTimestamps.push(now)
+    pruneRecycleTimestamps(now)
+  }
+
+  function countRecentRecycles(now) {
+    pruneRecycleTimestamps(now)
+    return recycleTimestamps.length
+  }
+
+  function pruneRecycleTimestamps(now) {
+    const cutoff = now - RECYCLE_WINDOW_MS
+    recycleTimestamps = recycleTimestamps.filter(timestamp => timestamp >= cutoff)
   }
 
   function emitState(state) {
@@ -270,6 +395,36 @@ export function createVoiceListener({
     disarmAwaitingAnswer,
     isAwaitingAnswer
   }
+}
+
+// Pure recycle decision for the inactivity watchdog. Recycle only while the
+// engine claims to be listening, no liveness event has landed within the
+// threshold, and we are not already backing off a recent recycle burst.
+export function shouldRecycleNow({
+  status,
+  lastActivityAt,
+  now,
+  thresholdMs,
+  recentRecycleCount = 0,
+  maxRecycles = Infinity
+}) {
+  if (status !== 'listening') return false
+  if (recentRecycleCount >= maxRecycles) return false
+  if (!Number.isFinite(lastActivityAt) || !Number.isFinite(now) || !Number.isFinite(thresholdMs)) {
+    return false
+  }
+  return now - lastActivityAt >= thresholdMs
+}
+
+// Pure backoff: stretch the delay once recycles churn past the cap so a wedged
+// engine cannot drive a tight recycle loop.
+export function recycleDelayMs({
+  recentRecycleCount = 0,
+  maxRecycles = Infinity,
+  baseDelayMs,
+  backoffDelayMs
+}) {
+  return recentRecycleCount >= maxRecycles ? backoffDelayMs : baseDelayMs
 }
 
 function resolveRecognitionConstructor() {
