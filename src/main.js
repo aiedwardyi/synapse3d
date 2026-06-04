@@ -27,7 +27,7 @@ import { linkDirectionalParticlesForGestureState } from './gesture-particles.js'
 import { hoverNodeLabel, resolveHoverTarget } from './hover-target.js'
 import { createVoiceListener } from './voice.js'
 import { matchNoteCommand, parseVoiceCommand } from './voice-command.js'
-import { callIntent, encodeSearchCandidates } from './voice-intent.js'
+import { callIntent, encodeSearchCandidates, warmUpIntent } from './voice-intent.js'
 import { orbitStep, recenter, zoomStep } from './camera-commands.js'
 import {
   startConversation,
@@ -126,6 +126,7 @@ let latestVoiceCommandSeq = 0
 let voiceStatusRevertTimer = null
 let activeVoiceConversation = null
 let activeVoiceConversationSeq = 0
+let voiceIntentWarmed = false
 
 const VOICE_TRANSIENT_REVERT_MS = 2400
 let currentSelection = null
@@ -1211,6 +1212,7 @@ function initVoiceListener() {
 
   trackingButton?.addEventListener('click', () => {
     voiceListener?.start()
+    warmVoiceIntentOnce()
   })
 
   voiceToggleButton?.addEventListener('click', () => {
@@ -1220,9 +1222,19 @@ function initVoiceListener() {
       voiceListener.stop()
     } else {
       voiceListener.start()
+      warmVoiceIntentOnce()
     }
     syncVoiceToggleLabel()
   })
+}
+
+// Warm the intent endpoint connection the first time voice is enabled so the
+// first spoken command does not pay connection setup. Runs once per session;
+// the warm connection is reused for later commands.
+function warmVoiceIntentOnce() {
+  if (voiceIntentWarmed) return
+  voiceIntentWarmed = true
+  warmUpIntent({ apiKey: import.meta.env?.VITE_ANTHROPIC_API_KEY })
 }
 
 function syncVoiceToggleLabel() {

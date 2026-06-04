@@ -2,7 +2,7 @@ import { searchNotes } from './voice-search.js'
 import { CANDIDATES_HEADER } from './voice-message-format.js'
 
 const ENDPOINT = 'https://api.anthropic.com/v1/messages'
-const MODEL = 'claude-sonnet-4-6'
+const MODEL = 'claude-haiku-4-5'
 const ANTHROPIC_VERSION = '2023-06-01'
 const OPEN_TOOL_NAME = 'open_note'
 const ASK_TOOL_NAME = 'ask_clarification'
@@ -60,6 +60,20 @@ export async function callIntent({ messages, candidates }, { apiKey } = {}) {
   if (!response) return null
 
   return normalizeResponse(response, candidates)
+}
+
+// Fire one minimal request when voice is enabled so the first real command does
+// not pay TLS and connection setup or a cold cache. The candidate is a throwaway
+// and the response is ignored; the call only needs to open the connection and
+// prime the static system + tools prefix where caching applies. Fire-and-forget:
+// it must never block voice start or throw, so any failure is swallowed.
+export function warmUpIntent({ apiKey } = {}) {
+  if (typeof apiKey !== 'string' || !apiKey) return
+  sendMessagesRequest({
+    messages: [{ role: 'user', content: 'warm up' }],
+    candidates: [{ id: 'warmup' }],
+    apiKey
+  }).catch(() => {})
 }
 
 function encodeCandidates(searchResults) {
