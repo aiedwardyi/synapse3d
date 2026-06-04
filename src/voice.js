@@ -144,6 +144,9 @@ export function createVoiceListener({
       // Recycle on a backoff rather than killing the listener.
       teardownRecognition()
       reportError(err?.message || 'start-failed', err)
+      // Surface the retry so a thrown start is observable instead of silently
+      // idle. Suppressed mid-conversation so the clarify prompt stays put.
+      if (active && !awaitingAnswer) emitState({ state: 'reconnecting' })
       if (active && !restartPending) {
         restartPending = true
         restartTimerId = setTimeout(() => {
@@ -157,11 +160,19 @@ export function createVoiceListener({
       return
     }
 
-    emitState({ state: 'listening' })
+    // Stay silent mid-conversation so a recycle does not wipe the clarify prompt.
+    if (!awaitingAnswer) emitState({ state: 'listening' })
   }
 
   function markActivity() {
     lastActivityAt = nowMs()
+    if (!restartPending) return
+    // Activity resumed before the scheduled recycle fired, so the engine is
+    // alive after all; cancel the recycle instead of cutting off an in-flight
+    // utterance.
+    clearRestartTimer()
+    restartPending = false
+    if (!awaitingAnswer) emitState({ state: 'listening' })
   }
 
   function teardownRecognition() {
@@ -299,12 +310,14 @@ export function createVoiceListener({
     if (!active || restartPending) return
 
     restartPending = true
-    emitState({ state: 'reconnecting' })
+    // Mid-conversation the recycle runs silently so the clarify prompt and its
+    // options stay on screen; awaitingAnswer is preserved across the rebuild.
+    if (!awaitingAnswer) emitState({ state: 'reconnecting' })
 
     const now = nowMs()
-    noteRecycle(now)
+    const recentRecycleCount = noteRecycle(now)
     const delayMs = recycleDelayMs({
-      recentRecycleCount: countRecentRecycles(now),
+      recentRecycleCount,
       maxRecycles: MAX_RECYCLES_IN_WINDOW,
       baseDelayMs: RESTART_DEBOUNCE_MS,
       backoffDelayMs: RESTART_BACKOFF_MS
@@ -358,6 +371,7 @@ export function createVoiceListener({
   function noteRecycle(now) {
     recycleTimestamps.push(now)
     pruneRecycleTimestamps(now)
+    return recycleTimestamps.length
   }
 
   function countRecentRecycles(now) {
