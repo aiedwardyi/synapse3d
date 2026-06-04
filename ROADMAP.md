@@ -56,6 +56,8 @@ A note reader and graph navigability pass followed (commit 0df0bf4). Selecting a
 
 A voice control layer followed (commit cad3424). A wake word arms a spoken command; saying the name of a note opens it through that same programmatic entry point. A fast local matcher handles direct phrasing, and a natural-language fallback reads candidate note bodies and recency to resolve ambiguous requests, asking a short clarifying question when needed. A spoken command vocabulary covers opening, closing, paging, selecting, clearing, recentering, zooming, and rotating. Repeated natural-language calls are cached to reduce cost. Transcription uses the browser speech API; the natural-language fallback uses a hosted model and runs when a key is configured, degrading to local matching otherwise. One known issue remains: continuous recognition can intermittently stop capturing until the page is reloaded, and a recognizer-recycle fix is planned.
 
+A follow-up made the recognizer self-healing (commit d41e773). On end or error it now tears down the recognizer and builds a fresh instance rather than restarting the same one, and an inactivity watchdog rebuilds a listener that has gone quiet, so a wedged recognizer recovers on its own without a page reload. An in-progress clarification stays on screen during a rebuild, and resumed speech is no longer cut off by a pending rebuild.
+
 ---
 
 ## v2 - Stretch

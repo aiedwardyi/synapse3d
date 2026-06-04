@@ -30,6 +30,16 @@ v1.0.0 released (commit c2a8966).
 - [x] Visible microphone error states; the voice toggle is available without starting hand tracking first
 - [x] 336 tests passing, build clean, CI green
 
+## Voice recognizer reliability (merged, commit d41e773)
+
+- [x] Recycle the recognizer instead of restarting it: full teardown and a fresh instance on end and error, reproducing the page-reload recovery automatically
+- [x] Inactivity watchdog recycles a wedged listener after roughly nine seconds of no activity while listening
+- [x] Brief reconnecting state surfaced during a recycle; a thrown start now emits reconnecting instead of going silently idle
+- [x] Recycle runs silently during a clarification (reconnecting and listening emissions gated while awaiting an answer) so the prompt stays on screen; awaiting-answer mode preserved across rebuilds
+- [x] Activity handler cancels a pending recycle so resumed speech is not cut off mid-utterance
+- [x] Recycle and watchdog decision logic kept as pure functions with unit coverage; watchdog wiring covered with fake timers
+- [x] 350 tests passing, build clean, CI green
+
 ## Done
 
 - [x] README.md with "What it demonstrates" framing, three in-app screenshots, three badges (CI, License, Version)
@@ -57,13 +67,13 @@ v1.0.0 released (commit c2a8966).
 
 ## Known issues
 
-- Continuous speech recognition can intermittently stop capturing until the page is reloaded. A recognizer-recycle fix (rebuild the recognizer on end/error, plus an inactivity watchdog) is planned next.
+- Voice commands have a noticeable delay before the note opens, worst on the first command of a session and faster afterward. Recognition is fine; the delay is the post-transcript pipeline (speech-final pause, a network round trip to the intent model, and cold-start on the first call). A faster intent model plus connection warmup is planned.
 
 ## Future work
 
 Pick one when ready:
 1. **Media node previews:** image/video previews on nodes. Adds render cost and depends on the vault carrying media plus embed parsing; scope deliberately.
-2. **Voice recognizer reliability:** rebuild the recognizer instance on end/error and add an inactivity watchdog so listening recovers without a page reload.
+2. **Voice latency polish:** use a faster model for intent matching and warm the network connection on voice start so the first command is not slow.
 3. **v1.5:** semantic clustering via embeddings, attribute-based coloring, topology toggles.
 4. **Smoothing tuning panel if needed:** only if real usage shows jitter or lag.
 5. **Custom gesture classifier:** a small model over landmark sequences for gestures the tracker does not ship.
