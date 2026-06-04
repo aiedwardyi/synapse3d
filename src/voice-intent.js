@@ -69,15 +69,11 @@ export async function callIntent({ messages, candidates }, { apiKey } = {}) {
 // it must never block voice start or throw, so any failure is swallowed.
 export function warmUpIntent({ apiKey } = {}) {
   if (typeof apiKey !== 'string' || !apiKey) return
-  try {
-    sendMessagesRequest({
-      messages: [{ role: 'user', content: 'warm up' }],
-      candidates: [{ id: 'warmup' }],
-      apiKey
-    }).catch(() => {})
-  } catch {
-    // Warm-up is best effort and must not disrupt voice start.
-  }
+  sendMessagesRequest({
+    messages: [{ role: 'user', content: 'warm up' }],
+    candidates: [{ id: 'warmup' }],
+    apiKey
+  }).catch(() => {})
 }
 
 function encodeCandidates(searchResults) {
