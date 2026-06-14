@@ -478,3 +478,62 @@ test('a silent resume whose start throws paints no state', () => {
 
   listener.stop()
 })
+
+test('a stale speech completion from an older generation does not resume or arm', () => {
+  useFakeClock()
+  const { instances, states, listener } = startFakeListener()
+
+  // Mirror main.js: this phrase captured its speech generation and the seq.
+  let activeSpeechGeneration = 5
+  const gen = activeSpeechGeneration
+  let conversationSeq = 3
+  const seqAtAsk = conversationSeq
+  listener.pauseForSpeech()
+  const stateCount = states.length
+
+  // A newer spoken prompt has started since (e.g. toggle off/on then a new
+  // outcome), taking ownership of the mic and bumping the generation.
+  activeSpeechGeneration++
+
+  // The stale fail-safe completion must be inert: it must not revive the mic the
+  // newer phrase just paused, nor arm an answer for a conversation it no longer owns.
+  const onDone = () => {
+    if (gen !== activeSpeechGeneration) return
+    if (conversationSeq === seqAtAsk) listener.armAwaitingAnswer()
+    listener.resumeAfterSpeech()
+  }
+  onDone()
+
+  assert.equal(listener.isAwaitingAnswer(), false)
+  assert.equal(instances.length, 1)
+  assert.equal(states.length, stateCount)
+
+  listener.stop()
+})
+
+test('a current-generation speech completion still resumes and arms', () => {
+  useFakeClock()
+  const { instances, states, listener } = startFakeListener()
+
+  let activeSpeechGeneration = 5
+  const gen = activeSpeechGeneration
+  let conversationSeq = 3
+  const seqAtAsk = conversationSeq
+  listener.pauseForSpeech()
+  const stateCount = states.length
+
+  // No newer phrase started, so this completion still owns the mic.
+  const onDone = () => {
+    if (gen !== activeSpeechGeneration) return
+    if (conversationSeq === seqAtAsk) listener.armAwaitingAnswer()
+    listener.resumeAfterSpeech()
+  }
+  onDone()
+
+  assert.equal(listener.isAwaitingAnswer(), true)
+  assert.equal(instances.length, 2)
+  assert.equal(instances[1].started, true)
+  assert.equal(states.length, stateCount)
+
+  listener.stop()
+})

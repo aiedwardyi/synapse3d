@@ -127,6 +127,10 @@ let latestVoiceCommandSeq = 0
 let voiceStatusRevertTimer = null
 let activeVoiceConversation = null
 let activeVoiceConversationSeq = 0
+// Bumped each time a new phrase starts speaking. A speech completion only acts if
+// its captured generation still matches, so a stale fail-safe onDone cannot resume
+// the mic a newer prompt has since paused.
+let activeSpeechGeneration = 0
 let voiceIntentWarmed = false
 
 const VOICE_TRANSIENT_REVERT_MS = 2400
@@ -571,9 +575,13 @@ function finalizeConversation() {
       // Speak the question with the mic torn down so it never hears itself, then
       // arm the answer timeout only when the spoken question finishes.
       const seqAtAsk = activeVoiceConversationSeq
+      const gen = ++activeSpeechGeneration
       voiceListener?.pauseForSpeech()
       speak(question, {
         onDone: () => {
+          // Ignore a stale completion: a newer spoken prompt now owns the mic, so
+          // reviving here would let the recognizer hear the current talk-back.
+          if (gen !== activeSpeechGeneration) return
           // Arm only if this conversation is still active; a cancel or vault
           // reload bumps the seq. Always revive the mic regardless.
           if (activeVoiceConversationSeq === seqAtAsk) voiceListener?.armAwaitingAnswer()
@@ -789,9 +797,12 @@ function maybeSpeakOutcome(stateName, text) {
     clearTimeout(voiceStatusRevertTimer)
     voiceStatusRevertTimer = null
   }
+  const gen = ++activeSpeechGeneration
   voiceListener?.pauseForSpeech()
   speak(phrase, {
     onDone: () => {
+      // Ignore a stale completion so it cannot resume the mic a newer phrase paused.
+      if (gen !== activeSpeechGeneration) return
       voiceListener?.resumeAfterSpeech()
       renderVoiceStatus(
         voiceListener?.isListening() ? { state: 'listening' } : { state: 'idle' }
