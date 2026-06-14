@@ -788,6 +788,11 @@ function maybeSpeakOutcome(stateName, text) {
   const phrase = speechForOutcome(stateName, text)
   if (phrase === null || !isSpeechSupported()) return
 
+  // Claim this phrase's generation first: cancelSpeech() below can make the engine
+  // fire the previous utterance's onend synchronously, and bumping before that
+  // makes the stale completion fail its generation guard instead of reviving the
+  // mic this phrase is about to pause.
+  const gen = ++activeSpeechGeneration
   // Flush any queued utterance, and cancel the transient revert so it cannot fire
   // mid-speech and flash LISTENING while the recognizer is torn down. The revert
   // is deferred to onDone, keeping the OPENED / NO MATCH text up until the mic is
@@ -797,7 +802,6 @@ function maybeSpeakOutcome(stateName, text) {
     clearTimeout(voiceStatusRevertTimer)
     voiceStatusRevertTimer = null
   }
-  const gen = ++activeSpeechGeneration
   voiceListener?.pauseForSpeech()
   speak(phrase, {
     onDone: () => {
