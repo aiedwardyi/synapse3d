@@ -28,6 +28,14 @@ import { hoverNodeLabel, resolveHoverTarget } from './hover-target.js'
 import { createVoiceListener } from './voice.js'
 import { matchNoteCommand, parseVoiceCommand } from './voice-command.js'
 import { callIntent, encodeSearchCandidates, warmUpIntent } from './voice-intent.js'
+import {
+  isSpeechSupported,
+  speak,
+  cancelSpeech,
+  speechForOutcome,
+  clarificationSpeech,
+  VOICE_ASK_FALLBACK
+} from './voice-speak.js'
 import { orbitStep, recenter, zoomStep } from './camera-commands.js'
 import {
   startConversation,
@@ -126,6 +134,10 @@ let latestVoiceCommandSeq = 0
 let voiceStatusRevertTimer = null
 let activeVoiceConversation = null
 let activeVoiceConversationSeq = 0
+// Bumped each time a new phrase starts speaking. A speech completion only acts if
+// its captured generation still matches, so a stale fail-safe onDone cannot resume
+// the mic a newer prompt has since paused.
+let activeSpeechGeneration = 0
 let voiceIntentWarmed = false
 
 const VOICE_TRANSIENT_REVERT_MS = 2400
@@ -561,7 +573,28 @@ function finalizeConversation() {
 
   if (state.phase === 'pending_user') {
     renderVoiceAsk(state.askMeta)
-    voiceListener?.armAwaitingAnswer()
+    if (isSpeechSupported()) {
+      // Speak the question and its option labels (voice-only users pick by saying
+      // a label) with the mic torn down so it never hears itself, then arm the
+      // answer timeout only when the spoken clarification finishes.
+      const seqAtAsk = activeVoiceConversationSeq
+      const gen = ++activeSpeechGeneration
+      const optionLabels = (state.askMeta?.options || []).map(o => o.label)
+      voiceListener?.pauseForSpeech()
+      speak(clarificationSpeech(state.askMeta?.question, optionLabels), {
+        onDone: () => {
+          // Ignore a stale completion: a newer spoken prompt now owns the mic, so
+          // reviving here would let the recognizer hear the current talk-back.
+          if (gen !== activeSpeechGeneration) return
+          // Arm only if this conversation is still active; a cancel or vault
+          // reload bumps the seq. Always revive the mic regardless.
+          if (activeVoiceConversationSeq === seqAtAsk) voiceListener?.armAwaitingAnswer()
+          voiceListener?.resumeAfterSpeech()
+        }
+      })
+    } else {
+      voiceListener?.armAwaitingAnswer()
+    }
     return
   }
 
@@ -659,6 +692,9 @@ function isConversationContextValid(commandSeq, conversationSeq) {
 }
 
 function cancelActiveConversation() {
+  // Stop any in-flight talk-back first so a synchronous onDone is neutralised by
+  // the disarm that immediately follows; an async onDone is skipped by the seq bump.
+  cancelSpeech()
   voiceListener?.disarmAwaitingAnswer()
   const wasAsking = voiceStatusElement?.getAttribute('data-state') === 'asking'
   activeVoiceConversation = null
@@ -742,6 +778,45 @@ function renderVoiceStatus(state) {
       )
     }, VOICE_TRANSIENT_REVERT_MS)
   }
+
+  // Single chokepoint for spoken outcomes. speechForOutcome only phrases the
+  // main.js outcomes (opened / unmatched); every listener state and 'done' return
+  // null, so this is a no-op for them.
+  maybeSpeakOutcome(stateName, state?.text)
+}
+
+// Speak a finished outcome with the mic paused so the recognizer never hears the
+// talk-back, then revive it when speech ends. No-op when speech is unsupported or
+// the state should stay silent (those keep the existing 2.4s transient revert).
+function maybeSpeakOutcome(stateName, text) {
+  const phrase = speechForOutcome(stateName, text)
+  if (phrase === null || !isSpeechSupported()) return
+
+  // Claim this phrase's generation first: cancelSpeech() below can make the engine
+  // fire the previous utterance's onend synchronously, and bumping before that
+  // makes the stale completion fail its generation guard instead of reviving the
+  // mic this phrase is about to pause.
+  const gen = ++activeSpeechGeneration
+  // Flush any queued utterance, and cancel the transient revert so it cannot fire
+  // mid-speech and flash LISTENING while the recognizer is torn down. The revert
+  // is deferred to onDone, keeping the OPENED / NO MATCH text up until the mic is
+  // actually live again.
+  cancelSpeech()
+  if (voiceStatusRevertTimer) {
+    clearTimeout(voiceStatusRevertTimer)
+    voiceStatusRevertTimer = null
+  }
+  voiceListener?.pauseForSpeech()
+  speak(phrase, {
+    onDone: () => {
+      // Ignore a stale completion so it cannot resume the mic a newer phrase paused.
+      if (gen !== activeSpeechGeneration) return
+      voiceListener?.resumeAfterSpeech()
+      renderVoiceStatus(
+        voiceListener?.isListening() ? { state: 'listening' } : { state: 'idle' }
+      )
+    }
+  })
 }
 
 function renderVoiceAsk(askMeta) {
@@ -770,7 +845,7 @@ function renderVoiceAsk(askMeta) {
 
   const bodyEl = document.createElement('div')
   bodyEl.className = 'voice-status-text'
-  bodyEl.textContent = askMeta.question || 'Which one?'
+  bodyEl.textContent = askMeta.question || VOICE_ASK_FALLBACK
   copy.appendChild(bodyEl)
 
   if (Array.isArray(askMeta.options) && askMeta.options.length > 0) {

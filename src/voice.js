@@ -30,6 +30,7 @@ export function createVoiceListener({
   let lastErrorAt = 0
   let consecutiveErrors = 0
   let awaitingAnswer = false
+  let pausedForSpeech = false
   let answerTimerId = null
   let lastActivityAt = 0
   let watchdogTimerId = null
@@ -88,11 +89,34 @@ export function createVoiceListener({
     if (!active) return
     active = false
     restartPending = false
+    pausedForSpeech = false
     disarmAwaitingAnswer()
     clearRestartTimer()
     stopWatchdog()
     teardownRecognition()
     emitState({ state: 'idle' })
+  }
+
+  // Pause the recognizer while talk-back speaks so it never hears its own output.
+  // Freeze it exactly as stop() does but leave active/awaiting/state untouched and
+  // emit nothing; cancel any pending recycle so an onend that lands mid-speech
+  // cannot revive the mic before resumeAfterSpeech runs.
+  function pauseForSpeech() {
+    if (!active || pausedForSpeech) return
+    pausedForSpeech = true
+    restartPending = false
+    clearRestartTimer()
+    stopWatchdog()
+    teardownRecognition()
+  }
+
+  // Revive the mic after talk-back finishes. Silent so reviving paints no state,
+  // and a no-op once stop() has ended the session.
+  function resumeAfterSpeech() {
+    if (!active || !pausedForSpeech) return
+    pausedForSpeech = false
+    spinUpRecognition({ silent: true })
+    startWatchdog()
   }
 
   function clearRestartTimer() {
@@ -101,7 +125,7 @@ export function createVoiceListener({
     restartTimerId = null
   }
 
-  function spinUpRecognition() {
+  function spinUpRecognition(options = {}) {
     const instance = new RecognitionImpl()
     recognition = instance
     lastActivityAt = nowMs()
@@ -145,8 +169,9 @@ export function createVoiceListener({
       teardownRecognition()
       reportError(err?.message || 'start-failed', err)
       // Surface the retry so a thrown start is observable instead of silently
-      // idle. Suppressed mid-conversation so the clarify prompt stays put.
-      if (active && !awaitingAnswer) emitState({ state: 'reconnecting' })
+      // idle. Suppressed mid-conversation so the clarify prompt stays put, and on
+      // a silent resume so it never paints over a just-spoken outcome.
+      if (active && !awaitingAnswer && !options.silent) emitState({ state: 'reconnecting' })
       if (active && !restartPending) {
         restartPending = true
         restartTimerId = setTimeout(() => {
@@ -160,8 +185,9 @@ export function createVoiceListener({
       return
     }
 
-    // Stay silent mid-conversation so a recycle does not wipe the clarify prompt.
-    if (!awaitingAnswer) emitState({ state: 'listening' })
+    // Stay silent mid-conversation so a recycle does not wipe the clarify prompt,
+    // and stay silent on a resume after talk-back so reviving the mic is invisible.
+    if (!awaitingAnswer && !options.silent) emitState({ state: 'listening' })
   }
 
   function markActivity() {
@@ -407,7 +433,9 @@ export function createVoiceListener({
     isSupported,
     armAwaitingAnswer,
     disarmAwaitingAnswer,
-    isAwaitingAnswer
+    isAwaitingAnswer,
+    pauseForSpeech,
+    resumeAfterSpeech
   }
 }
 
