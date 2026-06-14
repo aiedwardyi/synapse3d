@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { afterEach, test } from 'node:test'
+import { afterEach, beforeEach, test, mock } from 'node:test'
 import {
   isSpeechSupported,
   speak,
@@ -9,8 +9,13 @@ import {
 
 const originalWindow = globalThis.window
 
+beforeEach(() => {
+  mock.timers.enable({ apis: ['setTimeout'] })
+})
+
 afterEach(() => {
   globalThis.window = originalWindow
+  mock.timers.reset()
 })
 
 // Install a fake SpeechSynthesis surface that records utterances. cancel() fires
@@ -41,6 +46,14 @@ function makeSpeechWindow() {
 
 test('speechForOutcome phrases opened with the note text', () => {
   assert.equal(speechForOutcome('opened', 'My Note'), 'Opened My Note')
+})
+
+test('speechForOutcome opened drops the trailing word when text is undefined', () => {
+  assert.equal(speechForOutcome('opened', undefined), 'Opened')
+})
+
+test('speechForOutcome opened drops the trailing word when text is empty', () => {
+  assert.equal(speechForOutcome('opened', ''), 'Opened')
 })
 
 test('speechForOutcome announces unmatched as a generic miss', () => {
@@ -142,4 +155,32 @@ test('speak never calls onDone more than once across end, error and cancel', () 
 test('cancelSpeech is safe when speech is unsupported', () => {
   globalThis.window = undefined
   assert.doesNotThrow(() => cancelSpeech())
+})
+
+test('speak completes via the fail-safe timer when neither event fires', () => {
+  makeSpeechWindow()
+  let done = 0
+  speak('hello', { onDone: () => { done++ } })
+
+  // 'hello' is 5 chars, so the bound is max(5000, 5 * 200 + 3000) = 5000ms. The
+  // fail-safe must not fire before then (which would resume the mic mid-speech).
+  mock.timers.tick(4000)
+  assert.equal(done, 0)
+
+  // Past the bound it completes exactly once even though no onend/onerror fired.
+  mock.timers.tick(2000)
+  assert.equal(done, 1)
+})
+
+test('the fail-safe timer is cleared once a real event fires', () => {
+  const { utterances } = makeSpeechWindow()
+  let done = 0
+  speak('hello', { onDone: () => { done++ } })
+
+  utterances[0].onend()
+  assert.equal(done, 1)
+
+  // A later fail-safe deadline must not fire a second completion.
+  mock.timers.tick(60000)
+  assert.equal(done, 1)
 })

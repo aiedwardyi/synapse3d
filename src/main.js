@@ -130,6 +130,8 @@ let activeVoiceConversationSeq = 0
 let voiceIntentWarmed = false
 
 const VOICE_TRANSIENT_REVERT_MS = 2400
+// Shared so the spoken clarify prompt and the on-screen one cannot drift.
+const VOICE_ASK_FALLBACK = 'Which one?'
 let currentSelection = null
 let currentHover = null
 let currentGraphData = { nodes: [], links: [] }
@@ -562,8 +564,10 @@ function finalizeConversation() {
 
   if (state.phase === 'pending_user') {
     renderVoiceAsk(state.askMeta)
-    const question = state.askMeta?.question
-    if (isSpeechSupported() && question) {
+    // Speak the same text the UI shows, including the fallback when the model
+    // returns an empty question, so the spoken and on-screen prompts cannot drift.
+    const question = state.askMeta?.question || VOICE_ASK_FALLBACK
+    if (isSpeechSupported()) {
       // Speak the question with the mic torn down so it never hears itself, then
       // arm the answer timeout only when the spoken question finishes.
       const seqAtAsk = activeVoiceConversationSeq
@@ -771,12 +775,29 @@ function renderVoiceStatus(state) {
 
 // Speak a finished outcome with the mic paused so the recognizer never hears the
 // talk-back, then revive it when speech ends. No-op when speech is unsupported or
-// the state should stay silent.
+// the state should stay silent (those keep the existing 2.4s transient revert).
 function maybeSpeakOutcome(stateName, text) {
   const phrase = speechForOutcome(stateName, text)
   if (phrase === null || !isSpeechSupported()) return
+
+  // Flush any queued utterance, and cancel the transient revert so it cannot fire
+  // mid-speech and flash LISTENING while the recognizer is torn down. The revert
+  // is deferred to onDone, keeping the OPENED / NO MATCH text up until the mic is
+  // actually live again.
+  cancelSpeech()
+  if (voiceStatusRevertTimer) {
+    clearTimeout(voiceStatusRevertTimer)
+    voiceStatusRevertTimer = null
+  }
   voiceListener?.pauseForSpeech()
-  speak(phrase, { onDone: () => voiceListener?.resumeAfterSpeech() })
+  speak(phrase, {
+    onDone: () => {
+      voiceListener?.resumeAfterSpeech()
+      renderVoiceStatus(
+        voiceListener?.isListening() ? { state: 'listening' } : { state: 'idle' }
+      )
+    }
+  })
 }
 
 function renderVoiceAsk(askMeta) {
@@ -805,7 +826,7 @@ function renderVoiceAsk(askMeta) {
 
   const bodyEl = document.createElement('div')
   bodyEl.className = 'voice-status-text'
-  bodyEl.textContent = askMeta.question || 'Which one?'
+  bodyEl.textContent = askMeta.question || VOICE_ASK_FALLBACK
   copy.appendChild(bodyEl)
 
   if (Array.isArray(askMeta.options) && askMeta.options.length > 0) {

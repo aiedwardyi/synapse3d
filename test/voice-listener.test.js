@@ -439,3 +439,42 @@ test('clarify onDone skips arming when the seq was bumped but still revives the 
 
   listener.stop()
 })
+
+test('a silent resume whose start throws paints no state', () => {
+  useFakeClock()
+  const instances = []
+  class ThrowOnResumeRecognition {
+    constructor() {
+      this.started = false
+      this.stopped = false
+      instances.push(this)
+    }
+
+    start() {
+      // The initial start succeeds; only the silent resume's instance throws.
+      if (instances.length === 2) throw new Error('InvalidStateError')
+      this.started = true
+    }
+
+    stop() {
+      this.stopped = true
+    }
+  }
+
+  globalThis.window = { webkitSpeechRecognition: ThrowOnResumeRecognition }
+  const states = []
+  const listener = createVoiceListener({ onStateChange: state => states.push(state) })
+
+  listener.start()
+  listener.pauseForSpeech()
+  const stateCount = states.length
+
+  listener.resumeAfterSpeech()
+
+  // A thrown start on a silent resume must not paint reconnecting over the
+  // just-spoken outcome; the backoff retry still rebuilds the recognizer.
+  assert.equal(instances.length, 2)
+  assert.equal(states.length, stateCount)
+
+  listener.stop()
+})

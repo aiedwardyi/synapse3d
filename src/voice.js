@@ -169,8 +169,9 @@ export function createVoiceListener({
       teardownRecognition()
       reportError(err?.message || 'start-failed', err)
       // Surface the retry so a thrown start is observable instead of silently
-      // idle. Suppressed mid-conversation so the clarify prompt stays put.
-      if (active && !awaitingAnswer) emitState({ state: 'reconnecting' })
+      // idle. Suppressed mid-conversation so the clarify prompt stays put, and on
+      // a silent resume so it never paints over a just-spoken outcome.
+      if (active && !awaitingAnswer && !options.silent) emitState({ state: 'reconnecting' })
       if (active && !restartPending) {
         restartPending = true
         restartTimerId = setTimeout(() => {
