@@ -79,3 +79,23 @@ export function speechForOutcome(state, text) {
   if (state === 'unmatched') return 'No match found'
   return null
 }
+
+// Spoken and on-screen clarify prompts share this so they cannot drift.
+export const VOICE_ASK_FALLBACK = 'Which one?'
+
+// Pure: the spoken clarification. Voice-only users pick by saying a label, so the
+// phrase names the choices after the question (or the shared fallback when empty).
+// Empty labels are dropped; the rest read naturally: one as-is, two joined with
+// 'or', three or more as 'A, B, or C'.
+export function clarificationSpeech(question, optionLabels) {
+  const prompt = question || VOICE_ASK_FALLBACK
+  const labels = (optionLabels || []).filter(label => label)
+  if (labels.length === 0) return prompt
+  return `${prompt} ${joinLabels(labels)}`
+}
+
+function joinLabels(labels) {
+  if (labels.length === 1) return labels[0]
+  if (labels.length === 2) return `${labels[0]} or ${labels[1]}`
+  return `${labels.slice(0, -1).join(', ')}, or ${labels[labels.length - 1]}`
+}

@@ -4,7 +4,9 @@ import {
   isSpeechSupported,
   speak,
   cancelSpeech,
-  speechForOutcome
+  speechForOutcome,
+  clarificationSpeech,
+  VOICE_ASK_FALLBACK
 } from '../src/voice-speak.js'
 
 const originalWindow = globalThis.window
@@ -183,4 +185,40 @@ test('the fail-safe timer is cleared once a real event fires', () => {
   // A later fail-safe deadline must not fire a second completion.
   mock.timers.tick(60000)
   assert.equal(done, 1)
+})
+
+test('clarificationSpeech appends a single label as-is', () => {
+  assert.equal(clarificationSpeech('Pick a note', ['Alpha']), 'Pick a note Alpha')
+})
+
+test('clarificationSpeech joins two labels with or', () => {
+  assert.equal(
+    clarificationSpeech('Which note did you mean?', ['Alpha', 'Beta']),
+    'Which note did you mean? Alpha or Beta'
+  )
+})
+
+test('clarificationSpeech joins three or more labels with commas and a final or', () => {
+  assert.equal(
+    clarificationSpeech('Pick a note', ['Alpha', 'Beta', 'Gamma']),
+    'Pick a note Alpha, Beta, or Gamma'
+  )
+})
+
+test('clarificationSpeech uses the shared fallback when the question is empty', () => {
+  assert.equal(clarificationSpeech('', ['Alpha', 'Beta']), 'Which one? Alpha or Beta')
+  assert.equal(clarificationSpeech(undefined, ['Alpha', 'Beta']), 'Which one? Alpha or Beta')
+})
+
+test('clarificationSpeech speaks the question alone when there are no labels', () => {
+  assert.equal(clarificationSpeech('Which note?', []), 'Which note?')
+  assert.equal(clarificationSpeech('Which note?', undefined), 'Which note?')
+})
+
+test('clarificationSpeech filters empty labels before phrasing them', () => {
+  assert.equal(clarificationSpeech('Pick', ['Alpha', '', 'Beta']), 'Pick Alpha or Beta')
+})
+
+test('clarificationSpeech returns the bare fallback when empty with no labels', () => {
+  assert.equal(clarificationSpeech('', []), VOICE_ASK_FALLBACK)
 })

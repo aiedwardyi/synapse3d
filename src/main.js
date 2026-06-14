@@ -28,7 +28,14 @@ import { hoverNodeLabel, resolveHoverTarget } from './hover-target.js'
 import { createVoiceListener } from './voice.js'
 import { matchNoteCommand, parseVoiceCommand } from './voice-command.js'
 import { callIntent, encodeSearchCandidates, warmUpIntent } from './voice-intent.js'
-import { isSpeechSupported, speak, cancelSpeech, speechForOutcome } from './voice-speak.js'
+import {
+  isSpeechSupported,
+  speak,
+  cancelSpeech,
+  speechForOutcome,
+  clarificationSpeech,
+  VOICE_ASK_FALLBACK
+} from './voice-speak.js'
 import { orbitStep, recenter, zoomStep } from './camera-commands.js'
 import {
   startConversation,
@@ -134,8 +141,6 @@ let activeSpeechGeneration = 0
 let voiceIntentWarmed = false
 
 const VOICE_TRANSIENT_REVERT_MS = 2400
-// Shared so the spoken clarify prompt and the on-screen one cannot drift.
-const VOICE_ASK_FALLBACK = 'Which one?'
 let currentSelection = null
 let currentHover = null
 let currentGraphData = { nodes: [], links: [] }
@@ -568,16 +573,15 @@ function finalizeConversation() {
 
   if (state.phase === 'pending_user') {
     renderVoiceAsk(state.askMeta)
-    // Speak the same text the UI shows, including the fallback when the model
-    // returns an empty question, so the spoken and on-screen prompts cannot drift.
-    const question = state.askMeta?.question || VOICE_ASK_FALLBACK
     if (isSpeechSupported()) {
-      // Speak the question with the mic torn down so it never hears itself, then
-      // arm the answer timeout only when the spoken question finishes.
+      // Speak the question and its option labels (voice-only users pick by saying
+      // a label) with the mic torn down so it never hears itself, then arm the
+      // answer timeout only when the spoken clarification finishes.
       const seqAtAsk = activeVoiceConversationSeq
       const gen = ++activeSpeechGeneration
+      const optionLabels = (state.askMeta?.options || []).map(o => o.label)
       voiceListener?.pauseForSpeech()
-      speak(question, {
+      speak(clarificationSpeech(state.askMeta?.question, optionLabels), {
         onDone: () => {
           // Ignore a stale completion: a newer spoken prompt now owns the mic, so
           // reviving here would let the recognizer hear the current talk-back.
