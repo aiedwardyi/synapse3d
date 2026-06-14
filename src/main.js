@@ -28,6 +28,7 @@ import { hoverNodeLabel, resolveHoverTarget } from './hover-target.js'
 import { createVoiceListener } from './voice.js'
 import { matchNoteCommand, parseVoiceCommand } from './voice-command.js'
 import { callIntent, encodeSearchCandidates, warmUpIntent } from './voice-intent.js'
+import { isSpeechSupported, speak, cancelSpeech, speechForOutcome } from './voice-speak.js'
 import { orbitStep, recenter, zoomStep } from './camera-commands.js'
 import {
   startConversation,
@@ -561,7 +562,23 @@ function finalizeConversation() {
 
   if (state.phase === 'pending_user') {
     renderVoiceAsk(state.askMeta)
-    voiceListener?.armAwaitingAnswer()
+    const question = state.askMeta?.question
+    if (isSpeechSupported() && question) {
+      // Speak the question with the mic torn down so it never hears itself, then
+      // arm the answer timeout only when the spoken question finishes.
+      const seqAtAsk = activeVoiceConversationSeq
+      voiceListener?.pauseForSpeech()
+      speak(question, {
+        onDone: () => {
+          // Arm only if this conversation is still active; a cancel or vault
+          // reload bumps the seq. Always revive the mic regardless.
+          if (activeVoiceConversationSeq === seqAtAsk) voiceListener?.armAwaitingAnswer()
+          voiceListener?.resumeAfterSpeech()
+        }
+      })
+    } else {
+      voiceListener?.armAwaitingAnswer()
+    }
     return
   }
 
@@ -659,6 +676,9 @@ function isConversationContextValid(commandSeq, conversationSeq) {
 }
 
 function cancelActiveConversation() {
+  // Stop any in-flight talk-back first so a synchronous onDone is neutralised by
+  // the disarm that immediately follows; an async onDone is skipped by the seq bump.
+  cancelSpeech()
   voiceListener?.disarmAwaitingAnswer()
   const wasAsking = voiceStatusElement?.getAttribute('data-state') === 'asking'
   activeVoiceConversation = null
@@ -742,6 +762,21 @@ function renderVoiceStatus(state) {
       )
     }, VOICE_TRANSIENT_REVERT_MS)
   }
+
+  // Single chokepoint for spoken outcomes. speechForOutcome only phrases the
+  // main.js outcomes (opened / unmatched); every listener state and 'done' return
+  // null, so this is a no-op for them.
+  maybeSpeakOutcome(stateName, state?.text)
+}
+
+// Speak a finished outcome with the mic paused so the recognizer never hears the
+// talk-back, then revive it when speech ends. No-op when speech is unsupported or
+// the state should stay silent.
+function maybeSpeakOutcome(stateName, text) {
+  const phrase = speechForOutcome(stateName, text)
+  if (phrase === null || !isSpeechSupported()) return
+  voiceListener?.pauseForSpeech()
+  speak(phrase, { onDone: () => voiceListener?.resumeAfterSpeech() })
 }
 
 function renderVoiceAsk(askMeta) {

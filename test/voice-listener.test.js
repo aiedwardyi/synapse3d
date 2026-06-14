@@ -280,3 +280,162 @@ test('a thrown start surfaces reconnecting and retries on a backoff', () => {
 
   listener.stop()
 })
+
+test('pauseForSpeech freezes the recognizer without emitting or recycling', () => {
+  const clock = useFakeClock()
+  const { instances, states, listener } = startFakeListener()
+  const stateCount = states.length
+
+  listener.pauseForSpeech()
+
+  // The live recognizer is torn down and no replacement is built.
+  assert.equal(instances[0].stopped, true)
+  assert.equal(instances.length, 1)
+  // Nothing is painted over whatever prompt is on screen.
+  assert.equal(states.length, stateCount)
+  // The session stays logically active so it can resume after speech.
+  assert.equal(listener.isListening(), true)
+
+  // A long-stale clock and repeated watchdog polls must not recycle while paused.
+  clock.now = 100000
+  mock.timers.tick(2000)
+  mock.timers.tick(2000)
+  assert.equal(instances.length, 1)
+  assert.equal(states.length, stateCount)
+  assert.equal(listener.isListening(), true)
+
+  listener.stop()
+})
+
+test('pauseForSpeech cancels a recycle scheduled before it', () => {
+  useFakeClock()
+  const { instances, listener } = startFakeListener()
+
+  // An onend schedules a recycle on the debounce; pausing must cancel it so the
+  // mic cannot revive itself mid-speech and hear its own talk-back.
+  instances[0].onend()
+  listener.pauseForSpeech()
+
+  mock.timers.tick(1200)
+
+  assert.equal(instances.length, 1)
+  assert.equal(instances[0].stopped, true)
+  assert.equal(listener.isListening(), true)
+
+  listener.stop()
+})
+
+test('resumeAfterSpeech rebuilds a silent recognizer and the watchdog recycles again', () => {
+  const clock = useFakeClock()
+  const { instances, states, listener } = startFakeListener()
+
+  listener.pauseForSpeech()
+  const stateCount = states.length
+
+  listener.resumeAfterSpeech()
+
+  // A fresh, started recognizer replaces the paused one with no state emitted.
+  assert.equal(instances.length, 2)
+  assert.equal(instances[1].started, true)
+  assert.equal(states.length, stateCount)
+
+  // The watchdog is live again: a stale clock recycles the recognizer.
+  clock.now = 100000
+  mock.timers.tick(2000)
+  mock.timers.tick(350)
+  assert.equal(instances.length, 3)
+  assert.equal(instances[2].started, true)
+  assert.equal(instances[1].stopped, true)
+
+  listener.stop()
+})
+
+test('an armed awaiting-answer survives pause and resume and resume stays silent', () => {
+  useFakeClock()
+  const { instances, states, listener } = startFakeListener()
+
+  listener.armAwaitingAnswer()
+  assert.equal(listener.isAwaitingAnswer(), true)
+
+  listener.pauseForSpeech()
+  assert.equal(listener.isAwaitingAnswer(), true)
+
+  const stateCount = states.length
+  listener.resumeAfterSpeech()
+
+  assert.equal(listener.isAwaitingAnswer(), true)
+  assert.equal(instances.length, 2)
+  assert.equal(instances[1].started, true)
+  assert.equal(states.length, stateCount)
+
+  listener.stop()
+})
+
+test('pauseForSpeech and resumeAfterSpeech are no-ops after stop', () => {
+  useFakeClock()
+  const { instances, listener } = startFakeListener()
+
+  listener.stop()
+  const count = instances.length
+
+  listener.resumeAfterSpeech()
+  assert.equal(instances.length, count)
+  assert.equal(listener.isListening(), false)
+
+  listener.pauseForSpeech()
+  assert.equal(instances.length, count)
+  assert.equal(listener.isListening(), false)
+})
+
+test('clarify onDone arms awaiting when the conversation seq still matches', () => {
+  useFakeClock()
+  const { instances, states, listener } = startFakeListener()
+
+  // Mirror finalizeConversation's pending_user branch: capture the seq, pause for
+  // the spoken question, then on speech end re-check the seq before arming and
+  // always revive the mic.
+  let conversationSeq = 3
+  const seqAtAsk = conversationSeq
+  listener.pauseForSpeech()
+  const stateCount = states.length
+
+  const onDone = () => {
+    if (conversationSeq === seqAtAsk) listener.armAwaitingAnswer()
+    listener.resumeAfterSpeech()
+  }
+  onDone()
+
+  assert.equal(listener.isAwaitingAnswer(), true)
+  assert.equal(instances.length, 2)
+  assert.equal(instances[1].started, true)
+  assert.equal(states.length, stateCount)
+
+  listener.stop()
+})
+
+test('clarify onDone skips arming when the seq was bumped but still revives the mic', () => {
+  useFakeClock()
+  const { instances, states, listener } = startFakeListener()
+
+  let conversationSeq = 3
+  const seqAtAsk = conversationSeq
+  listener.pauseForSpeech()
+  const stateCount = states.length
+
+  // A cancel or vault reload bumped the seq while the question was being spoken.
+  conversationSeq++
+
+  const onDone = () => {
+    if (conversationSeq === seqAtAsk) listener.armAwaitingAnswer()
+    listener.resumeAfterSpeech()
+  }
+  onDone()
+
+  // Arming is skipped, but the mic is revived regardless.
+  assert.equal(listener.isAwaitingAnswer(), false)
+  assert.equal(instances.length, 2)
+  assert.equal(instances[1].started, true)
+  assert.equal(states.length, stateCount)
+
+  listener.stop()
+})
