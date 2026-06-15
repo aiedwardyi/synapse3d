@@ -16,18 +16,19 @@ export function isSpeechSupported() {
 const activeUtterances = new Set()
 
 // Talk-back voice character: a deep male "Jarvis". Lower pitch = deeper. Tweak to taste.
-const JARVIS_PITCH = 0.8
+const JARVIS_PITCH = 0.9
 const JARVIS_RATE = 1.0
 
 // SpeechSynthesis exposes no gender flag, so match known male voice names: British
 // neural first (Jarvis is British), then US neural, then classic Windows males.
 // Returns null (use default voice) when none match or voices have not loaded yet.
 const MALE_VOICE_PATTERNS = [
-  /Microsoft (Ryan|Thomas).*(Online|Natural|Neural)/i,
+  /Microsoft (Ryan|Thomas|Arthur).*(Online|Natural|Neural)/i,
   /Microsoft (Guy|Christopher|Eric|Brian|Davis|Andrew|Roger|Steffan).*(Online|Natural|Neural)/i,
   /Google UK English Male/i,
-  /Microsoft (George|James|Mark|David)/i,
-  /\bmale\b/i
+  /\bmale\b/i,
+  /Google US English/i,
+  /Microsoft (George|James|Mark|David)/i
 ]
 
 let loggedVoices = false
