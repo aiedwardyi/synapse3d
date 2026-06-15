@@ -138,6 +138,9 @@ let activeVoiceConversationSeq = 0
 // its captured generation still matches, so a stale fail-safe onDone cannot resume
 // the mic a newer prompt has since paused.
 let activeSpeechGeneration = 0
+// Delay between pausing the recognizer and speaking, so its async stop() releases the
+// audio input first; speaking immediately drops the utterance (it comes out silent).
+const SPEAK_DEFER_MS = 250
 let voiceIntentWarmed = false
 
 const VOICE_TRANSIENT_REVERT_MS = 2400
@@ -596,7 +599,7 @@ function finalizeConversation() {
             voiceListener?.resumeAfterSpeech()
           }
         })
-      }, 250)
+      }, SPEAK_DEFER_MS)
     } else {
       voiceListener?.armAwaitingAnswer()
     }
@@ -697,10 +700,15 @@ function isConversationContextValid(commandSeq, conversationSeq) {
 }
 
 function cancelActiveConversation() {
-  // Stop any in-flight talk-back first so a synchronous onDone is neutralised by
-  // the disarm that immediately follows; an async onDone is skipped by the seq bump.
+  // Invalidate pending and in-flight talk-back. Bump the generation FIRST so a
+  // deferred speak (scheduled but not yet started) fails its guard and never fires,
+  // and an in-flight utterance's onDone is skipped too. cancelSpeech() stops a
+  // speaking utterance; resumeAfterSpeech() then revives the mic the now-skipped
+  // speech had paused (a no-op when nothing was paused) - the skipped onDone can't.
+  activeSpeechGeneration++
   cancelSpeech()
   voiceListener?.disarmAwaitingAnswer()
+  voiceListener?.resumeAfterSpeech()
   const wasAsking = voiceStatusElement?.getAttribute('data-state') === 'asking'
   activeVoiceConversation = null
   activeVoiceConversationSeq++
@@ -823,7 +831,7 @@ function maybeSpeakOutcome(stateName, text) {
         )
       }
     })
-  }, 250)
+  }, SPEAK_DEFER_MS)
 }
 
 function renderVoiceAsk(askMeta) {
