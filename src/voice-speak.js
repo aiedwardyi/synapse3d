@@ -15,6 +15,41 @@ export function isSpeechSupported() {
 // strand the paused mic. Each utterance is removed the moment it completes.
 const activeUtterances = new Set()
 
+// Talk-back voice character: a deep male "Jarvis". Lower pitch = deeper. Tweak to taste.
+const JARVIS_PITCH = 0.8
+const JARVIS_RATE = 1.0
+
+// SpeechSynthesis exposes no gender flag, so match known male voice names: British
+// neural first (Jarvis is British), then US neural, then classic Windows males.
+// Returns null (use default voice) when none match or voices have not loaded yet.
+const MALE_VOICE_PATTERNS = [
+  /Microsoft (Ryan|Thomas).*(Online|Natural|Neural)/i,
+  /Microsoft (Guy|Christopher|Eric|Brian|Davis|Andrew|Roger|Steffan).*(Online|Natural|Neural)/i,
+  /Google UK English Male/i,
+  /Microsoft (George|James|Mark|David)/i,
+  /\bmale\b/i
+]
+
+let loggedVoices = false
+function pickJarvisVoice() {
+  let voices = []
+  try { voices = window.speechSynthesis.getVoices() } catch { return null }
+  if (!Array.isArray(voices) || voices.length === 0) return null
+  const english = voices.filter(v => /^en/i.test(v.lang))
+  const pool = english.length ? english : voices
+  let chosen = null
+  for (const pattern of MALE_VOICE_PATTERNS) {
+    chosen = pool.find(v => pattern.test(v.name))
+    if (chosen) break
+  }
+  if (!loggedVoices) {
+    loggedVoices = true
+    // Temporary: surfaces the picked voice + your installed options so the pick can be tuned.
+    console.log('[jarvis] picked:', chosen?.name || '(browser default)', '| available en:', pool.map(v => v.name))
+  }
+  return chosen
+}
+
 // Speak text, invoking onDone exactly once when speech finishes (onend), fails
 // (onerror), or is cancelled (which surfaces through those same handlers). A
 // length-aware fail-safe timer completes the call even if no event ever fires.
@@ -47,9 +82,15 @@ export function speak(text, { onDone } = {}) {
   try {
     utterance = new window.SpeechSynthesisUtterance(text)
     utterance.lang = 'en-US'
+    utterance.rate = JARVIS_RATE
+    utterance.pitch = JARVIS_PITCH
+    const voice = pickJarvisVoice()
+    if (voice) {
+      utterance.voice = voice
+      utterance.lang = voice.lang
+    }
     utterance.onend = finish
-    utterance.onstart = () => console.log('[talkback] onstart fired:', JSON.stringify(text))
-    utterance.onerror = (e) => { console.log('[talkback] onerror:', e && e.error); finish() }
+    utterance.onerror = finish
     activeUtterances.add(utterance)
     // Generous and length-aware so it never fires during real speech (a premature
     // fire would resume the mic mid-utterance and reintroduce self-hearing), but
@@ -58,13 +99,7 @@ export function speak(text, { onDone } = {}) {
     safetyTimerId = setTimeout(finish, safetyMs)
     safetyTimerId?.unref?.()
     window.speechSynthesis.speak(utterance)
-    console.log('[talkback] after speak →', {
-      speaking: window.speechSynthesis.speaking,
-      pending: window.speechSynthesis.pending,
-      paused: window.speechSynthesis.paused
-    })
-  } catch (err) {
-    console.log('[talkback] speak threw:', err && err.message)
+  } catch {
     // A thrown speak never fires onend, so revive the caller immediately.
     finish()
   }

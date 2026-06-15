@@ -581,17 +581,22 @@ function finalizeConversation() {
       const gen = ++activeSpeechGeneration
       const optionLabels = (state.askMeta?.options || []).map(o => o.label)
       voiceListener?.pauseForSpeech()
-      speak(clarificationSpeech(state.askMeta?.question, optionLabels), {
-        onDone: () => {
-          // Ignore a stale completion: a newer spoken prompt now owns the mic, so
-          // reviving here would let the recognizer hear the current talk-back.
-          if (gen !== activeSpeechGeneration) return
-          // Arm only if this conversation is still active; a cancel or vault
-          // reload bumps the seq. Always revive the mic regardless.
-          if (activeVoiceConversationSeq === seqAtAsk) voiceListener?.armAwaitingAnswer()
-          voiceListener?.resumeAfterSpeech()
-        }
-      })
+      // Defer past the recognizer teardown (its stop() is async) so the question is
+      // not swallowed while the mic still holds the audio input. Stale ask skipped.
+      setTimeout(() => {
+        if (gen !== activeSpeechGeneration) return
+        speak(clarificationSpeech(state.askMeta?.question, optionLabels), {
+          onDone: () => {
+            // Ignore a stale completion: a newer spoken prompt now owns the mic, so
+            // reviving here would let the recognizer hear the current talk-back.
+            if (gen !== activeSpeechGeneration) return
+            // Arm only if this conversation is still active; a cancel or vault
+            // reload bumps the seq. Always revive the mic regardless.
+            if (activeVoiceConversationSeq === seqAtAsk) voiceListener?.armAwaitingAnswer()
+            voiceListener?.resumeAfterSpeech()
+          }
+        })
+      }, 250)
     } else {
       voiceListener?.armAwaitingAnswer()
     }
