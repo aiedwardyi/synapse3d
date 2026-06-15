@@ -138,9 +138,6 @@ let activeVoiceConversationSeq = 0
 // its captured generation still matches, so a stale fail-safe onDone cannot resume
 // the mic a newer prompt has since paused.
 let activeSpeechGeneration = 0
-// Delay between pausing the recognizer and speaking, so its async stop() releases the
-// audio input first; speaking immediately drops the utterance (it comes out silent).
-const SPEAK_DEFER_MS = 250
 let voiceIntentWarmed = false
 
 const VOICE_TRANSIENT_REVERT_MS = 2400
@@ -599,7 +596,7 @@ function finalizeConversation() {
             voiceListener?.resumeAfterSpeech()
           }
         })
-      }, SPEAK_DEFER_MS)
+      }, 250)
     } else {
       voiceListener?.armAwaitingAnswer()
     }
@@ -831,7 +828,7 @@ function maybeSpeakOutcome(stateName, text) {
         )
       }
     })
-  }, SPEAK_DEFER_MS)
+  }, 250)
 }
 
 function renderVoiceAsk(askMeta) {

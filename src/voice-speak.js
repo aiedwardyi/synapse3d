@@ -79,9 +79,10 @@ export function speak(text, { onDone } = {}) {
     utterance.rate = JARVIS_RATE
     utterance.pitch = JARVIS_PITCH
     const voice = pickJarvisVoice()
-    // Setting voice is enough - it carries its own locale. Overriding lang to the
-    // voice's locale (e.g. en-GB) can shift phoneme rendering, so leave it en-US.
-    if (voice) utterance.voice = voice
+    if (voice) {
+      utterance.voice = voice
+      utterance.lang = voice.lang
+    }
     utterance.onend = finish
     utterance.onerror = finish
     activeUtterances.add(utterance)
@@ -117,8 +118,8 @@ export function speechForOutcome(state, text) {
 }
 
 // Pure: a short spoken confirmation for a completed navigation or camera command.
-// Maps the status label set by dispatchDirectVoiceCommand (main.js) to a natural
-// phrase; returns null for an unrecognized label so we stay silent, not read it raw.
+// Maps the status label set at the dispatch site (main.js) to a natural phrase, and
+// returns null for an unrecognized label so we stay silent rather than read it raw.
 function navigationSpeech(text) {
   const raw = (text || '').trim()
   const key = raw.toLowerCase()
