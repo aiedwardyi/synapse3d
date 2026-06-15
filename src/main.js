@@ -581,17 +581,22 @@ function finalizeConversation() {
       const gen = ++activeSpeechGeneration
       const optionLabels = (state.askMeta?.options || []).map(o => o.label)
       voiceListener?.pauseForSpeech()
-      speak(clarificationSpeech(state.askMeta?.question, optionLabels), {
-        onDone: () => {
-          // Ignore a stale completion: a newer spoken prompt now owns the mic, so
-          // reviving here would let the recognizer hear the current talk-back.
-          if (gen !== activeSpeechGeneration) return
-          // Arm only if this conversation is still active; a cancel or vault
-          // reload bumps the seq. Always revive the mic regardless.
-          if (activeVoiceConversationSeq === seqAtAsk) voiceListener?.armAwaitingAnswer()
-          voiceListener?.resumeAfterSpeech()
-        }
-      })
+      // Defer past the recognizer teardown (its stop() is async) so the question is
+      // not swallowed while the mic still holds the audio input. Stale ask skipped.
+      setTimeout(() => {
+        if (gen !== activeSpeechGeneration) return
+        speak(clarificationSpeech(state.askMeta?.question, optionLabels), {
+          onDone: () => {
+            // Ignore a stale completion: a newer spoken prompt now owns the mic, so
+            // reviving here would let the recognizer hear the current talk-back.
+            if (gen !== activeSpeechGeneration) return
+            // Arm only if this conversation is still active; a cancel or vault
+            // reload bumps the seq. Always revive the mic regardless.
+            if (activeVoiceConversationSeq === seqAtAsk) voiceListener?.armAwaitingAnswer()
+            voiceListener?.resumeAfterSpeech()
+          }
+        })
+      }, 250)
     } else {
       voiceListener?.armAwaitingAnswer()
     }
@@ -692,10 +697,15 @@ function isConversationContextValid(commandSeq, conversationSeq) {
 }
 
 function cancelActiveConversation() {
-  // Stop any in-flight talk-back first so a synchronous onDone is neutralised by
-  // the disarm that immediately follows; an async onDone is skipped by the seq bump.
+  // Invalidate pending and in-flight talk-back. Bump the generation FIRST so a
+  // deferred speak (scheduled but not yet started) fails its guard and never fires,
+  // and an in-flight utterance's onDone is skipped too. cancelSpeech() stops a
+  // speaking utterance; resumeAfterSpeech() then revives the mic the now-skipped
+  // speech had paused (a no-op when nothing was paused) - the skipped onDone can't.
+  activeSpeechGeneration++
   cancelSpeech()
   voiceListener?.disarmAwaitingAnswer()
+  voiceListener?.resumeAfterSpeech()
   const wasAsking = voiceStatusElement?.getAttribute('data-state') === 'asking'
   activeVoiceConversation = null
   activeVoiceConversationSeq++
@@ -792,31 +802,33 @@ function maybeSpeakOutcome(stateName, text) {
   const phrase = speechForOutcome(stateName, text)
   if (phrase === null || !isSpeechSupported()) return
 
-  // Claim this phrase's generation first: cancelSpeech() below can make the engine
-  // fire the previous utterance's onend synchronously, and bumping before that
-  // makes the stale completion fail its generation guard instead of reviving the
-  // mic this phrase is about to pause.
+  // Claim this phrase's generation first so a stale deferred speak or completion
+  // fails its generation guard instead of reviving the mic this phrase will pause.
   const gen = ++activeSpeechGeneration
-  // Flush any queued utterance, and cancel the transient revert so it cannot fire
-  // mid-speech and flash LISTENING while the recognizer is torn down. The revert
-  // is deferred to onDone, keeping the OPENED / NO MATCH text up until the mic is
-  // actually live again.
-  cancelSpeech()
+  // Only flush when something is actually queued or playing. Cancelling an idle
+  // engine and then speaking can make Chrome drop the fresh utterance.
+  if (window.speechSynthesis.speaking || window.speechSynthesis.pending) cancelSpeech()
   if (voiceStatusRevertTimer) {
     clearTimeout(voiceStatusRevertTimer)
     voiceStatusRevertTimer = null
   }
   voiceListener?.pauseForSpeech()
-  speak(phrase, {
-    onDone: () => {
-      // Ignore a stale completion so it cannot resume the mic a newer phrase paused.
-      if (gen !== activeSpeechGeneration) return
-      voiceListener?.resumeAfterSpeech()
-      renderVoiceStatus(
-        voiceListener?.isListening() ? { state: 'listening' } : { state: 'idle' }
-      )
-    }
-  })
+  // Defer the speak: the recognizer's stop() is async, so speaking synchronously
+  // here fires while the mic still holds the audio input and the utterance comes
+  // out silent. Waiting a beat lets the input release (and any cancel settle).
+  setTimeout(() => {
+    if (gen !== activeSpeechGeneration) return
+    speak(phrase, {
+      onDone: () => {
+        // Ignore a stale completion so it cannot resume the mic a newer phrase paused.
+        if (gen !== activeSpeechGeneration) return
+        voiceListener?.resumeAfterSpeech()
+        renderVoiceStatus(
+          voiceListener?.isListening() ? { state: 'listening' } : { state: 'idle' }
+        )
+      }
+    })
+  }, 250)
 }
 
 function renderVoiceAsk(askMeta) {

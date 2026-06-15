@@ -15,6 +15,35 @@ export function isSpeechSupported() {
 // strand the paused mic. Each utterance is removed the moment it completes.
 const activeUtterances = new Set()
 
+// Talk-back voice character: a deep male "Jarvis". Lower pitch = deeper. Tweak to taste.
+const JARVIS_PITCH = 0.9
+const JARVIS_RATE = 1.0
+
+// SpeechSynthesis exposes no gender flag, so match known male voice names: British
+// neural first (Jarvis is British), then US neural, then classic Windows males.
+// Returns null (use default voice) when none match or voices have not loaded yet.
+const MALE_VOICE_PATTERNS = [
+  /Microsoft (Ryan|Thomas|Arthur).*(Online|Natural|Neural)/i,
+  /Microsoft (Guy|Christopher|Eric|Brian|Davis|Andrew|Roger|Steffan).*(Online|Natural|Neural)/i,
+  /Google UK English Male/i,
+  /\bmale\b/i,
+  /Google US English/i,
+  /Microsoft (George|James|Mark|David)/i
+]
+
+function pickJarvisVoice() {
+  let voices = []
+  try { voices = window.speechSynthesis.getVoices() } catch { return null }
+  if (!Array.isArray(voices) || voices.length === 0) return null
+  const english = voices.filter(v => /^en/i.test(v.lang))
+  const pool = english.length ? english : voices
+  for (const pattern of MALE_VOICE_PATTERNS) {
+    const match = pool.find(v => pattern.test(v.name))
+    if (match) return match
+  }
+  return null
+}
+
 // Speak text, invoking onDone exactly once when speech finishes (onend), fails
 // (onerror), or is cancelled (which surfaces through those same handlers). A
 // length-aware fail-safe timer completes the call even if no event ever fires.
@@ -47,6 +76,13 @@ export function speak(text, { onDone } = {}) {
   try {
     utterance = new window.SpeechSynthesisUtterance(text)
     utterance.lang = 'en-US'
+    utterance.rate = JARVIS_RATE
+    utterance.pitch = JARVIS_PITCH
+    const voice = pickJarvisVoice()
+    if (voice) {
+      utterance.voice = voice
+      utterance.lang = voice.lang
+    }
     utterance.onend = finish
     utterance.onerror = finish
     activeUtterances.add(utterance)
@@ -73,10 +109,33 @@ export function cancelSpeech() {
 }
 
 // Pure: the spoken phrase for a finished voice outcome, or null when the state
-// should stay silent (every listener state and navigation 'done').
+// should stay silent (every listener state, and an unrecognized navigation done).
 export function speechForOutcome(state, text) {
   if (state === 'opened') return text ? `Opened ${text}` : 'Opened'
   if (state === 'unmatched') return 'No match found'
+  if (state === 'done') return navigationSpeech(text)
+  return null
+}
+
+// Pure: a short spoken confirmation for a completed navigation or camera command.
+// Maps the status label set at the dispatch site (main.js) to a natural phrase, and
+// returns null for an unrecognized label so we stay silent rather than read it raw.
+function navigationSpeech(text) {
+  const raw = (text || '').trim()
+  const key = raw.toLowerCase()
+  const fixed = {
+    close: 'Closed',
+    next: 'Next',
+    previous: 'Previous',
+    clear: 'Cleared',
+    recenter: 'Recentered',
+    'zoom in': 'Zooming in',
+    'zoom out': 'Zooming out'
+  }
+  if (Object.hasOwn(fixed, key)) return fixed[key]
+  // rotate/select carry an argument; keep the original case (note labels matter).
+  if (key.startsWith('rotate ')) return `Rotating ${raw.slice('rotate '.length)}`
+  if (key.startsWith('select ')) return `Selected ${raw.slice('select '.length)}`
   return null
 }
 
