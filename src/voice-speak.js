@@ -31,24 +31,17 @@ const MALE_VOICE_PATTERNS = [
   /Microsoft (George|James|Mark|David)/i
 ]
 
-let loggedVoices = false
 function pickJarvisVoice() {
   let voices = []
   try { voices = window.speechSynthesis.getVoices() } catch { return null }
   if (!Array.isArray(voices) || voices.length === 0) return null
   const english = voices.filter(v => /^en/i.test(v.lang))
   const pool = english.length ? english : voices
-  let chosen = null
   for (const pattern of MALE_VOICE_PATTERNS) {
-    chosen = pool.find(v => pattern.test(v.name))
-    if (chosen) break
+    const match = pool.find(v => pattern.test(v.name))
+    if (match) return match
   }
-  if (!loggedVoices) {
-    loggedVoices = true
-    // Temporary: surfaces the picked voice + your installed options so the pick can be tuned.
-    console.log('[jarvis] picked:', chosen?.name || '(browser default)', '| available en:', pool.map(v => v.name))
-  }
-  return chosen
+  return null
 }
 
 // Speak text, invoking onDone exactly once when speech finishes (onend), fails
