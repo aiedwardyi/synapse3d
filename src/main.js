@@ -792,31 +792,33 @@ function maybeSpeakOutcome(stateName, text) {
   const phrase = speechForOutcome(stateName, text)
   if (phrase === null || !isSpeechSupported()) return
 
-  // Claim this phrase's generation first: cancelSpeech() below can make the engine
-  // fire the previous utterance's onend synchronously, and bumping before that
-  // makes the stale completion fail its generation guard instead of reviving the
-  // mic this phrase is about to pause.
+  // Claim this phrase's generation first so a stale deferred speak or completion
+  // fails its generation guard instead of reviving the mic this phrase will pause.
   const gen = ++activeSpeechGeneration
-  // Flush any queued utterance, and cancel the transient revert so it cannot fire
-  // mid-speech and flash LISTENING while the recognizer is torn down. The revert
-  // is deferred to onDone, keeping the OPENED / NO MATCH text up until the mic is
-  // actually live again.
-  cancelSpeech()
+  // Only flush when something is actually queued or playing. Cancelling an idle
+  // engine and then speaking can make Chrome drop the fresh utterance.
+  if (window.speechSynthesis.speaking || window.speechSynthesis.pending) cancelSpeech()
   if (voiceStatusRevertTimer) {
     clearTimeout(voiceStatusRevertTimer)
     voiceStatusRevertTimer = null
   }
   voiceListener?.pauseForSpeech()
-  speak(phrase, {
-    onDone: () => {
-      // Ignore a stale completion so it cannot resume the mic a newer phrase paused.
-      if (gen !== activeSpeechGeneration) return
-      voiceListener?.resumeAfterSpeech()
-      renderVoiceStatus(
-        voiceListener?.isListening() ? { state: 'listening' } : { state: 'idle' }
-      )
-    }
-  })
+  // Defer the speak: the recognizer's stop() is async, so speaking synchronously
+  // here fires while the mic still holds the audio input and the utterance comes
+  // out silent. Waiting a beat lets the input release (and any cancel settle).
+  setTimeout(() => {
+    if (gen !== activeSpeechGeneration) return
+    speak(phrase, {
+      onDone: () => {
+        // Ignore a stale completion so it cannot resume the mic a newer phrase paused.
+        if (gen !== activeSpeechGeneration) return
+        voiceListener?.resumeAfterSpeech()
+        renderVoiceStatus(
+          voiceListener?.isListening() ? { state: 'listening' } : { state: 'idle' }
+        )
+      }
+    })
+  }, 250)
 }
 
 function renderVoiceAsk(askMeta) {

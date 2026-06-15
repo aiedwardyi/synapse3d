@@ -48,7 +48,8 @@ export function speak(text, { onDone } = {}) {
     utterance = new window.SpeechSynthesisUtterance(text)
     utterance.lang = 'en-US'
     utterance.onend = finish
-    utterance.onerror = finish
+    utterance.onstart = () => console.log('[talkback] onstart fired:', JSON.stringify(text))
+    utterance.onerror = (e) => { console.log('[talkback] onerror:', e && e.error); finish() }
     activeUtterances.add(utterance)
     // Generous and length-aware so it never fires during real speech (a premature
     // fire would resume the mic mid-utterance and reintroduce self-hearing), but
@@ -57,7 +58,13 @@ export function speak(text, { onDone } = {}) {
     safetyTimerId = setTimeout(finish, safetyMs)
     safetyTimerId?.unref?.()
     window.speechSynthesis.speak(utterance)
-  } catch {
+    console.log('[talkback] after speak →', {
+      speaking: window.speechSynthesis.speaking,
+      pending: window.speechSynthesis.pending,
+      paused: window.speechSynthesis.paused
+    })
+  } catch (err) {
+    console.log('[talkback] speak threw:', err && err.message)
     // A thrown speak never fires onend, so revive the caller immediately.
     finish()
   }
