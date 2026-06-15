@@ -62,7 +62,7 @@ test('speechForOutcome announces unmatched as a generic miss', () => {
   assert.equal(speechForOutcome('unmatched', 'kitchen sink'), 'No match found')
 })
 
-test('speechForOutcome stays silent for listener states and navigation done', () => {
+test('speechForOutcome stays silent for listener states', () => {
   for (const state of [
     'listening',
     'armed',
@@ -70,11 +70,32 @@ test('speechForOutcome stays silent for listener states and navigation done', ()
     'heard',
     'reconnecting',
     'error',
-    'idle',
-    'done'
+    'idle'
   ]) {
     assert.equal(speechForOutcome(state, 'whatever'), null)
   }
+})
+
+test('speechForOutcome phrases completed navigation and camera commands', () => {
+  assert.equal(speechForOutcome('done', 'close'), 'Closed')
+  assert.equal(speechForOutcome('done', 'next'), 'Next')
+  assert.equal(speechForOutcome('done', 'previous'), 'Previous')
+  assert.equal(speechForOutcome('done', 'clear'), 'Cleared')
+  assert.equal(speechForOutcome('done', 'recenter'), 'Recentered')
+  assert.equal(speechForOutcome('done', 'zoom in'), 'Zooming in')
+  assert.equal(speechForOutcome('done', 'zoom out'), 'Zooming out')
+  assert.equal(speechForOutcome('done', 'rotate left'), 'Rotating left')
+  assert.equal(speechForOutcome('done', 'rotate down'), 'Rotating down')
+})
+
+test('speechForOutcome speaks a selection with its label, case preserved', () => {
+  assert.equal(speechForOutcome('done', 'select Alpha Notes'), 'Selected Alpha Notes')
+})
+
+test('speechForOutcome stays silent for an unrecognized done label', () => {
+  assert.equal(speechForOutcome('done', 'whatever'), null)
+  assert.equal(speechForOutcome('done', ''), null)
+  assert.equal(speechForOutcome('done', undefined), null)
 })
 
 test('isSpeechSupported is false without a window', () => {

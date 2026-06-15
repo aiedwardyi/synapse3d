@@ -116,10 +116,33 @@ export function cancelSpeech() {
 }
 
 // Pure: the spoken phrase for a finished voice outcome, or null when the state
-// should stay silent (every listener state and navigation 'done').
+// should stay silent (every listener state, and an unrecognized navigation done).
 export function speechForOutcome(state, text) {
   if (state === 'opened') return text ? `Opened ${text}` : 'Opened'
   if (state === 'unmatched') return 'No match found'
+  if (state === 'done') return navigationSpeech(text)
+  return null
+}
+
+// Pure: a short spoken confirmation for a completed navigation or camera command.
+// Maps the status label set at the dispatch site (main.js) to a natural phrase, and
+// returns null for an unrecognized label so we stay silent rather than read it raw.
+function navigationSpeech(text) {
+  const raw = (text || '').trim()
+  const key = raw.toLowerCase()
+  const fixed = {
+    close: 'Closed',
+    next: 'Next',
+    previous: 'Previous',
+    clear: 'Cleared',
+    recenter: 'Recentered',
+    'zoom in': 'Zooming in',
+    'zoom out': 'Zooming out'
+  }
+  if (Object.hasOwn(fixed, key)) return fixed[key]
+  // rotate/select carry an argument; keep the original case (note labels matter).
+  if (key.startsWith('rotate ')) return `Rotating ${raw.slice('rotate '.length)}`
+  if (key.startsWith('select ')) return `Selected ${raw.slice('select '.length)}`
   return null
 }
 
