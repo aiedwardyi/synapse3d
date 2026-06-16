@@ -40,6 +40,22 @@ v1.0.0 released (commit c2a8966).
 - [x] Recycle and watchdog decision logic kept as pure functions with unit coverage; watchdog wiring covered with fake timers
 - [x] 350 tests passing, build clean, CI green
 
+## Voice latency polish (merged, commit 7c55086)
+
+- [x] Switched intent matching to a faster, lighter model (Haiku), trimming latency on every spoken command
+- [x] Connection warmup fired once when voice is enabled, so the first command of a session skips cold connection setup and a cold cache; skips when no API key is configured and never blocks voice start
+- [x] 354 tests passing, build clean, CI green
+
+## Voice talk-back (merged, commit 65bc229)
+
+- [x] Spoken clarification questions: when the app asks which note you meant, the question is now spoken as well as shown
+- [x] Spoken command confirmations on every command (open, close, next, previous, select, clear, recenter, zoom, rotate), not only on opening a note
+- [x] The recognizer is released before the app speaks and resumes listening only after speech ends, so the microphone and speaker never contend for the same audio device
+- [x] A neural voice at slightly lowered pitch for the spoken read
+- [x] A new command cancels any pending speech so a fast follow-up is not queued behind the previous utterance
+- [x] A fail-safe timer resumes listening even if a speech-end event never arrives, and sequence guards prevent a stale utterance from resuming the microphone for the wrong turn
+- [x] 393 tests passing, build clean, CI green
+
 ## Done
 
 - [x] README.md with "What it demonstrates" framing, three in-app screenshots, three badges (CI, License, Version)
@@ -67,13 +83,14 @@ v1.0.0 released (commit c2a8966).
 
 ## Known issues
 
-- Voice commands have a noticeable delay before the note opens, worst on the first command of a session and faster afterward. Recognition is fine; the delay is the post-transcript pipeline (speech-final pause, a network round trip to the intent model, and cold-start on the first call). A faster intent model plus connection warmup is planned.
+- The status readout has no dedicated reconnecting label, so during a recognizer recycle it briefly shows the generic listening-result text. Cosmetic; recovery works.
+- The browser speech engine waits for a pause before finalizing a phrase, which adds inherent latency before processing begins. Not addressed; it is standard browser behavior.
 
 ## Future work
 
 Pick one when ready:
 1. **Media node previews:** image/video previews on nodes. Adds render cost and depends on the vault carrying media plus embed parsing; scope deliberately.
-2. **Voice latency polish:** use a faster model for intent matching and warm the network connection on voice start so the first command is not slow.
-3. **v1.5:** semantic clustering via embeddings, attribute-based coloring, topology toggles.
-4. **Smoothing tuning panel if needed:** only if real usage shows jitter or lag.
-5. **Custom gesture classifier:** a small model over landmark sequences for gestures the tracker does not ship.
+2. **Semantic clustering (v1.5):** group similar notes via embeddings so related notes drift together in space, with attribute-based coloring and topology toggles.
+3. **Smoothing tuning panel if needed:** only if real usage shows jitter or lag.
+4. **Custom gesture classifier:** a small model over landmark sequences for gestures the tracker does not ship.
+

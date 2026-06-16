@@ -58,13 +58,16 @@ A voice control layer followed (commit cad3424). A wake word arms a spoken comma
 
 A follow-up made the recognizer self-healing (commit d41e773). On end or error it now tears down the recognizer and builds a fresh instance rather than restarting the same one, and an inactivity watchdog rebuilds a listener that has gone quiet, so a wedged recognizer recovers on its own without a page reload. An in-progress clarification stays on screen during a rebuild, and resumed speech is no longer cut off by a pending rebuild.
 
+A latency pass followed (commit 7c55086). Intent matching moved to a faster, lighter model, and a one-time connection warmup fires when voice is enabled so the first spoken command of a session does not pay cold connection setup or a cold cache. Later commands were already fast through prompt caching; this targets the first one.
+
+A spoken talk-back layer followed (commit 65bc229). The interface now speaks: clarification questions are read aloud as well as shown, and every command - opening, closing, paging, selecting, clearing, recentering, zooming, and rotating - is confirmed by voice. Because the browser's speech recognition and speech synthesis share one audio device, the recognizer is fully released before the app speaks and listening resumes only after speech ends; a fail-safe timer and sequence guards keep the microphone from resuming for the wrong turn. The spoken voice uses a neural system voice at slightly lowered pitch, and a new command cancels any pending speech so a fast follow-up is not queued behind the previous utterance.
+
 ---
 
 ## v2 - Stretch
 
 Out of scope for v1 but architecturally compatible:
 
-- **Spoken confirmation (text-to-speech).** Speak clarification questions and command outcomes aloud, building on the voice control layer.
 - **Custom gesture classifier.** Small MLP trained on landmark sequences for gestures MediaPipe doesn't ship (snap, point, hold-up).
 - **Semantic search.** Local embeddings over note content. Nearest-neighbor highlights in graph space.
 
